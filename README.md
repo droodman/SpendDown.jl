@@ -25,11 +25,12 @@ As of September 2026, underlying packages are not loading properly in Julia 1.13
 4. In Julia, install this package with `using Pkg; Pkg.add(url="https://github.com/droodman/SpendDown.jl")`.
 
 If you want to use the model through the Pluto front end (recommended):
-1. Open a terminal window and type `julia +1.12`.
-2. In Julia, type `]` to enter the package manager.
-3. Type `add Pluto`.
-4. Hit delete or backspace to exit the package manager.
-5. Type `using Pluto; Pluto.run()`. The Pluto home screen should appear in a new browser tab.
+1. In Julia 1.12, do
+```
+using Pkg; Pkg.add("Pluto")
+using Pluto; Pluto.run()
+```
+2. The Pluto home screen should appear in a new browser tab.
 6. In the browser, under "Open a notebook", click in the text box and navigate to the file src/frontend.jl inside the unzipped repo.
 7. Click Open on the right.
 8. Once the notebook loads, click "Run notebook code".
