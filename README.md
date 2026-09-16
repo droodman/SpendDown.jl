@@ -16,7 +16,9 @@ This code file implements two versions of the spenddown model. Version 1 has not
 
 
 ## Installation
-From the prominent Code button above, download the zip file of this repo and unzip it. [Install Julia](https://julialang.org/install/). Then, in Julia, hit "]" to enter the package manager, do `dev [path name]` where `[path name]` is the path of the unzipped repo. Then exit the package manager by hitting backspace/delete.
+```
+using Pkg; Pkg.add(url="https://github.com/droodman/SpendDown.jl")
+```
 
 If you want to use the model through the Pluto front end:
 1. Open a terminal window and type `julia`.
