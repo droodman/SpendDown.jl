@@ -24,6 +24,7 @@ The front end is built in Pluto, which does not yet support Julia 1.13 (as of Se
    ```
    juliaup add 1.12
    julia +1.12
+   
    ```
 3. After Julia starts, install this package with
    ```julia
