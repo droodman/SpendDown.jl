@@ -34,11 +34,8 @@ To run the front end (recommended):
 1. Download the front end directly from this repo by going here, and clicking the download icon toward the upper right.
 2. In Julia 1.12, do
 ```julia
-using Pkg; Pkg.add("Pluto")
-using Pluto; Pluto.run()
+using SpendDown
+SpendDown.notebook()
 ```
-2. The Pluto home screen should appear in a new browser tab.
-6. In the browser, under "Open a notebook", click in the text box and navigate to the file src/frontend.jl inside the unzipped repo.
-7. Click Open on the right.
-8. Once the notebook loads, click "Run notebook code".
-9. Wait a long time for the needed packages to download and compile.
+3. The Pluto home screen should appear in a new browser tab.
+4. Especially on firs use, wait a long time for the needed packages to download and compile.
