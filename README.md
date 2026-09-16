@@ -16,12 +16,18 @@ This code file implements two versions of the spenddown model. Version 1 has not
 
 
 ## Installation
+This is a Julia package, so you need Julia.
+
+As of September 2026, underlying packages are not loading properly in Julia 1.13, which was just released. So use Julia 1.12:
+1. Follow the [installation instructions for Julia](https://julialang.org/downloads).
+2. In a command shell, do `juliaup add 1.12`.
+3. Start Julia with `julia +1.12`. Or configure the Julia extension in VS Code to point to a 1.12.x directory.
 ```
 using Pkg; Pkg.add(url="https://github.com/droodman/SpendDown.jl")
 ```
 
-If you want to use the model through the Pluto front end:
-1. Open a terminal window and type `julia`.
+If you want to use the model through the Pluto front end (recommended):
+1. Open a terminal window and type `julia 1.12`.
 2. In Julia, type `]` to enter the package manager.
 3. Type `add Pluto`.
 4. Hit delete or backspace to exit the package manager.
@@ -29,3 +35,4 @@ If you want to use the model through the Pluto front end:
 6. In the browser, under "Open a notebook", click in the text box and navigate to the file src/frontend.jl inside the unzipped repo.
 7. Click Open on the right.
 8. Once the notebook loads, click "Run notebook code".
+9. Wait a long time.
