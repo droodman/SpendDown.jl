@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.10
+# v0.20.28
 
 #> [frontmatter]
 
@@ -22,7 +22,7 @@ end
 begin
 	pushfirst!(LOAD_PATH,"..")  # This notebook sits in /src while the SpendDown package definition sits in the parent dir
 	
-	using SpendDown, ChainRulesCore, PlutoUI, Random, Optim, Statistics, StatsBase, CairoMakie, LogExpFunctions, DataFrames, AxisKeys, Distributions, LinearAlgebra, Dates
+	using SpendDown, ChainRulesCore, PlutoUI, Random, Optim, Statistics, StatsBase, CairoMakie, LogExpFunctions, DataFrames, AxisKeys, Distributions, LinearAlgebra, Dates, NLSolversBase
 
 	# print a KeyedArray as a syntactically correct constructor of itself
 	Base.show(io::IO, o::KeyedArray{T}) where {T} = print(io, 
@@ -208,25 +208,6 @@ md"""
 ## Boundary conditions
 """
 
-# ╔═╡ 72dd2e82-fa0d-4500-bb67-6ee615398b62
-md"""
-### Initial assets (``A_0``)
-
-Distribution type: $(@getdisttype(lnA₀type, lnA₀typedefault[]))
-"""
-
-# ╔═╡ 817d5e1f-9d9c-4c74-8d81-0c5aff46415b
-@control(lnA₀type, lnA₀metaparams, lnA₀metaparamsdefault, 1:100_000, xform=exp)
-
-# ╔═╡ 224446c2-6a8e-46b9-9780-7b9dc5c9b21d
-begin
-	lnA₀ = @assign(lnA₀type, lnA₀metaparams, xform=log)
-	md"""Values are in million $.
-	     
-	Note: Distributions are here interpreted as applying to the _log_ of initial assets.
-	"""
-end
-
 # ╔═╡ a8e4ca99-8d9b-42b1-b628-0eac915514f9
 md"""
 ### Start year (``t_1``)
@@ -236,123 +217,15 @@ md"""
 Calendar year in which spending starts. This matters only for interpreting the X-risk timeline below.
 """
 
-# ╔═╡ d9029735-fd6a-4032-8480-44b2624501a9
-md"""
-## Diminishing returns within a year (``η``)
-Distribution type: $(@getdisttype(ηtype, ηtypedefault[]))
-"""
-
-# ╔═╡ c35e5119-a9c4-4575-b199-68c21ac48c54
-@control(ηtype, ηmetaparams, ηmetaparamsdefault, 0:.01:1)
-
-# ╔═╡ f1a7bbba-91d1-4a2b-b907-723df653de3c
-begin
-	η = @assign(ηtype, ηmetaparams)
-		
-	md"""
-	``1 – \eta`` is the elasticity of philanthropic good to philanthropy: each 1% increase in giving increases total impact ``(1 – \eta)``%. ``\eta = 0`` makes the relationship linear. ``\eta = 1`` makes it sort of logarithmic.[^1] Assuming ``\eta>0``, total impact grows more slowly than total giving.
-	
-	Taking the difference between ``1`` and ``1-\eta``, average impact per dollar falls by ``\eta``% for each ``1``% increase in giving. It works out that our _marginal_ impact, which ideally is our bar, falls at the same rate.
-	
-	The defaults are copied from this [fall 2023 spreadsheet](https://docs.google.com/spreadsheets/d/1K-j1C8_-oxh2nXfHgmKm_hxSvgYNhHl3zBeQ9AMMM00/edit?gid=935943732#gid=935943732).
-	
-	Peter Favaloro [estimated](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.1snwsiiw44hu) _η_ = 0.37 from data on GiveWell charities assembled by Alex Cohen.
-	
-	In Feb 2023, Martin Gould [estimated](https://docs.google.com/document/d/1SJnUSj8Dp5VQpuKQXSA6PP4g9hSwvx1O5OA8Q3HkOjo/edit?tab=t.0) _η_ = 0.3–0.7 for FAW going forward.
-
-	[^1]: Footnote: the relevant term of the utility function is ``y_t^{1-\eta}/(1-\eta)``. If it were ``(y_t^{1-\eta}-1)/(1-\eta)`` then it would [converge to logarithmic](https://en.wikipedia.org/wiki/Isoelastic_utility) as ``\eta\rightarrow1``.
-	"""
-end
-
 # ╔═╡ 1151d56b-7771-4d6c-8076-2340b0a8c483
 md"""
 ## Learning
 """
 
-# ╔═╡ f75fa40c-5af7-4eb7-ab86-3b3f9acb0dce
-md"""
-### Total exogenous learning (``L_{max}``)
-Distribution type: $(@getdisttype(Lₘₐₓtype, Lₘₐₓtypedefault[]))
-"""
-
-# ╔═╡ 62a746fc-5455-4789-b5db-4cfb737762dd
-@control(Lₘₐₓtype, Lₘₐₓmetaparams, Lₘₐₓmetaparamsdefault, 0:.01:10)
-
-# ╔═╡ 9bc51dce-4d25-4900-9c27-4ca1b2b351a0
-begin
-	Lₘₐₓ = @assign(Lₘₐₓtype, Lₘₐₓmetaparams)
-
-	md"""
-	``L_{max}`` is a multiplier that sets total exogenous learning in the first phase, as [defined in version1 of the model](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.l3qhcyjigysm). The _endogenous_ learning in version 2 of the model---learning driven by past grantmaking experience rather than the pure passage of time---tends to make this parameter obsolete. Since it is a multiplier, setting it to 1 turns off exogenous learning.
-	"""
-end
-
 # ╔═╡ 55f6ab36-7511-4ea1-b4c1-d09fa1bc7442
 md"""
 ### Endogenous learning
 """
-
-# ╔═╡ bf7a906f-11af-4d4b-8c65-e365d0661cf5
-md"""
-#### Depreciation of experience (``δ_l``)
-Distribution type: $(@getdisttype(δₗtype, δₗtypedefault[]))
-"""
-
-# ╔═╡ 3588ce71-0d64-42d0-9610-3b9f669c8c65
-@control(δₗtype, δₗmetaparams, δₗmetaparamsdefault, 0:.0001:1)
-
-# ╔═╡ 26a2c19f-e401-4671-81bf-5c24339b1bf4
-begin
-δₗ = @assign(δₗtype, δₗmetaparams)
-
-md"""
-``δ_l`` is the annualized rate at which past experience---or past investments in OP capacity or field-building---loses value, as staff turns over, or a changing world makes our experience and investments less relevant. If ``δ_l = 0``, then the utility function is a classic learning curve in which productivity depends with constant elasticity on cumulative production. Experience never loses value. If ``δ_l > 0``, this would seem to reward building up the organization and, having done so, spending down more aggressively before the accumulated experience effectively depreciates.
-"""
-end
-
-# ╔═╡ 5087952f-4b1d-497c-9c1b-ed5ebae34c81
-md"""
-#### Diminishing learning returns from each year's spending (``ϕ``)
-Distribution type: $(@getdisttype(ϕtype, ϕtypedefault[]))
-"""
-
-# ╔═╡ 8bd60ffd-b287-468c-96f2-6aa0962f4495
-@control(ϕtype, ϕmetaparams, ϕmetaparamsdefault, 0:.01:1)
-
-# ╔═╡ 0554c422-b130-4a8e-abe6-2f4ad7ae8956
-begin
-ϕ = @assign(ϕtype, ϕmetaparams)
-
-md"""
-Our capacity to learn through each year's spending might face diminishing returns. Perhaps if we disburse \$1 billion in one year rather than over ten, we will learn less. The model expresses this possibility through the exoponent ``ϕ`` on each year's, spending, ``y_t``. (See the first equation under Mathematical Statement above.) Setting ``\phi=1`` implies no diminishing returns within each year. Setting it between 0 and 1 causes the rate of return to diminish.
-"""
-end
-
-# ╔═╡ 218b6bc8-453a-44eb-97bc-6e8ac0851422
-md"""
-#### Learning rate (``c``)
-Distribution type: $(@getdisttype(ctype, ctypedefault[]))
-"""
-
-# ╔═╡ ebf524ce-55ec-446f-b9fc-84d76e5dad0b
-@control(ctype, cmetaparams, cmetaparamsdefault, 0:.01:2)
-
-# ╔═╡ 0952a455-f9e4-4fcf-a285-a16f57f46042
-begin
-c = @assign(ctype, cmetaparams)
-
-md"""
-_c_ is the elasticity of selection power---how much $ funding opportunity that we find at each cost-effectiveness level---to "cumulative production" of grants. It is the rate of endogenous learning...or field-building, or any other spending-correlated investment that boosts future productivity.
-
-This framing of learning-by-doing, with price or productivity related linearly to cumulative production on a log-log plot, is well established. The prices of [lithium batteries](https://ourworldindata.org/battery-price-decline) and [solar cells](https://ourworldindata.org/cheap-renewables-growth) have fallen 20% for each doubling of cumulative global production. Inverting that number, productivity has risen ``1/(1-.2)=125\%`` for each doubling. To convert that to an elasticity like ``c``, divide it by ``\ln 2`` (or multiply by ``1.44``). That gives a learning rate of 0.32: each 1% increase in cumulative production was accompanied by a 32% rise in output per dollar.
-
-In this set-up, if our giving plateaus, learning slows, because each successive doubling of cumulative grantmaking takes longer.
-
-Since learning enters the model through the productivity multiplier ``S_t^\eta = (L_t^c)^\eta = L_t^{c\eta}``, arguably it is the product ``c\eta`` that best corresponds to observed learning rates such as ``0.32``. If we thought ``\eta=0.5``, then we might prefer ``c=0.64``, to arrange that ``c\eta=0.32``.
-
-Learning-by-manufacturing is not obviously a good model for learning-by-grantmaking. Manufacturers benefit from tight feedback loops in a way that we and our grantees [rarely do](https://www.openphilanthropy.org/research/three-key-issues-ive-changed-my-mind-about/#id-3-changing-my-mind-about-general-properties-of-promising-ideas-and-interventions). So maybe we learn less efficiently. On the other hand, our bar, a rough indicator of our marginal and average effectiveness, rose ~20x between 2017 and 2024 while our cumulative grantmaking grew 10x. If we attribute the first solely to the second, then we achieved extraordinarily rapid endogenous learning, with ``c\eta\approx 2``.
-"""
-end
 
 # ╔═╡ 6cc88f19-e9fe-42c7-abd4-2ba7e0f13527
 md"""
@@ -388,29 +261,6 @@ md"""
 md"""
 ### Rate of return on assets (``r``)
 """
-
-# ╔═╡ 9fdff29f-0a0a-4bf9-b083-563d35a46b2b
-md"""
-Distribution type: $(@getdisttype(rtype, rtypedefault[]))
-"""
-
-# ╔═╡ 7a1ea043-8743-4943-9ba7-f4afa02e032b
-@control(rtype, rmetaparams, rmetaparamsdefault, -100:.001:100)
-
-# ╔═╡ 416f25f2-15f9-4c9d-885a-b2779e195990
-begin
-	r = @assign(rtype, rmetaparams)
-	
-	md"""
-	``r`` is the anual rate of return on assets. The defaults are [copied from the version 1 model](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.xjnyrwk5etbt).
-	
-	(If the "low" and "high" values look swapped, that is not a mistake. The models have established the convention that "high" values reward more giving now. The convention matters only for interpretation of cross-parameter correlations.)
-
-	Since 1871, the S&P 500 (or an approximation thereof in the early years) [has returned](https://shillerdata.com) a compound annual growth rate (CAGR) of 6.95%, including dividends and adjusting for inflation. The returns exhibit essentially no year-to-year correlation or long-term trend.
-
-	Past stock market performance is a good baseline for predicting future performance. However, U.S. returns were achieved as America became the greatest economic power in history. And the spectacular gains in recent decades [can](https://www.federalreserve.gov/econres/feds/files/2023041pap.pdf) be [attributed](https://www.gspublishing.com/content/research/en/reports/2024/10/18/29e68989-0d2c-4960-bd4b-010a101f711e.html) to unsustainable factors such as falling interest rates and corporate tax rates. Stocks did less well elsewhere, and could therefore be reasonably predicted to do less well in the U.S. going forward. Here are returns for 1900--2022 from [Credit Suisse](https://www.credit-suisse.com/media/assets/corporate/docs/about-us/research/publications/credit-suisse-global-investment-returns-yearbook-2023-summary-edition.pdf):
-	"""
-end
 
 # ╔═╡ fce075f4-cd42-4169-9f4c-c0c298cf687c
 begin
@@ -484,100 +334,6 @@ md"""
 ### Exogenous decline in cost-effectiveness (``∂CE``)
 """
 
-# ╔═╡ e4bf8fe4-47a7-4c14-99b9-f39c6c733fed
-md"""
-Distribution type: $(@getdisttype(∂CEtype, ∂CEtypedefault[]))
-"""
-
-# ╔═╡ c050d60d-3409-4c6f-956d-b13dfe1dfcc2
-@control(∂CEtype, ∂CEmetaparams, ∂CEmetaparamsdefault, -1:.0001:1)
-
-# ╔═╡ d8682222-b840-4f06-b953-44cd4c6a53a7
-begin
-∂CE = @assign(∂CEtype, ∂CEmetaparams)
-
-md"""
-``∂CE`` is the anual rate of decline (or rise, if ``∂CE < 0``) in our effectiveness for exogenous reasons. It represents the net effect of forces such as declining global poverty and advances in medical technology.
-
-The defaults are copied from the [falll 2023 exercise](https://docs.google.com/spreadsheets/d/1K-j1C8_-oxh2nXfHgmKm_hxSvgYNhHl3zBeQ9AMMM00/edit?gid=935943732#gid=935943732&range=A1). See the version 1 [spenddown write-up](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.mfmlgc8fv17t) for a thoughtful discussion.
-"""
-end
-
-# ╔═╡ c9b1a39f-881e-4757-a555-f6daf3e26a77
-md"""
-### Values drift (``v``)
-Distribution type: $(@getdisttype(vtype, vtypedefault[]))
-"""
-
-# ╔═╡ e2866a95-73a5-4c39-8f7d-403326ef0e37
-@control(vtype, vmetaparams, vmetaparamsdefault, -1:.0001:1)
-
-# ╔═╡ c28390d8-b2a0-489f-80a0-c54583fb843c
-begin
-v = @assign(vtype, vmetaparams)
-
-md"""
-``v`` is the anual rate of decline (or rise, if ``v < 0``) in the net present value of our impact owing to mission drift. See [this section](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.iox25644x5fl) of the write-up of the version 1 model.
-"""
-end
-
-# ╔═╡ d5938b8a-03dc-4706-afa8-b018ed13d19d
-@control(ftype, fmetaparams, fmetaparamsdefault, -1:.0001:1)
-
-# ╔═╡ 02f745b2-8ce7-4d99-a6ba-0ac2201fe9d7
-begin
-f = @assign(ftype, fmetaparams)
-	
-	md"""
-Here a value of 0.01 means that initially the good done by a grant compounds at 1%/year. The default values are taken from the [Version 1 write-up](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?pli=1&tab=t.0#heading=h.td08plqwplqx).
-"""
-end
-
-# ╔═╡ 3aca7360-a8a8-4dfc-b61f-4670f1cd6ac7
-md"""
-
-#### Decay of flow-through over time (``\delta_f``)
-
-Annual decay in flow-through rate: $(@getdisttype(δftype, δftypedefault[]))
-"""
-
-# ╔═╡ b19ca241-8373-44eb-a572-ccd24c614261
-@control(δftype, δfmetaparams, δfmetaparamsdefault, 0:.001:1)
-
-# ╔═╡ 7605db32-345f-4f77-a51b-3eae23359cc4
-begin
-δf = @assign(δftype, δfmetaparams);
-	md"""
-	While the good we do might initially compound at the rate or rates specified above, it seems plausible that over the long run they would peter out rather than compounding toward infinity. _Consequences_ might unfurl indefinitely, but whether for good or ill would become increasingly uncertain.
-
-	This parameter describes such decay in benefits. For example if the good done by grantmaking in year 1 compounded by 5% in year 2 (``f = 0.05``), and if ``\delta_f=0.01``, then the compounding between years 2 and 3 would be ``5\% \times (1-0.01) = 4.95\%``. The flow-through rate would continue decaying thereafter.
-	
-	As long as ``\delta_f>0``, _total_ flow-through will not grow without bound. If ``\delta_f=0``, then flow-through is dropped from the model.
-	"""
-end
-
-# ╔═╡ 015bceb5-1406-40ff-b2ed-1e9559111ec9
-md"""
-### X-risk/end-of-scarcity through 2100 (``X``)
-Distribution type: $(@getdisttype(Xtype, Xtypedefault[]))
-"""
-
-# ╔═╡ 1d3d2829-0bf1-428a-bb21-d11abddbfdcc
-@control(Xtype, Xmetaparams, Xmetaparamsdefault, -1:.001:1)
-
-# ╔═╡ 6e0dde3b-91b5-4486-a050-854b8cccb694
-begin
-X = @assign(Xtype, Xmetaparams)
-
-md"""
-``X`` is the risk that philanthropy will end by 2100 because of extinction---or because of its opposite, the end of scarcity. This risk affects not how long spending continues but how long any benefits of any spending "flow through" into the future (see next parameter). See [this section](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.oj8x5fi6sy0) of the version 1 write-up.
-
-The default high value, 0.167, comes from Toby Ord's [estimate](https://theprecipice.com) that there is 1-in-6 chance of human extinction by 2100. The default low and median values come from the Existential Risk Persuasion Tournament (XPT). The XPT [extracted](https://static1.squarespace.com/static/635693acf15a3e2a14a56a4a/t/64f0a7838ccbf43b6b5ee40c/1693493128111/XPT.pdf#page=6) a median estimate of 6% from experts on various existential risks (95% confidence interval [3.41%, 10.00%]) and just 1% ([0.55%, 1.23%]) from non-expert "superforecasters."
-
-In the version 2 model, X-risk is simulated rather than being expressed as discount rate. In each simulation run, an unfair coin is flipped each year. When it comes up heads, the timeline halts, and no more spending or flow-through occurs.
-"""
-end
-
 # ╔═╡ fbe051c5-ba18-49f6-b443-692b20a292aa
 begin
 	md"""
@@ -607,92 +363,10 @@ timeline = [2020 0
 # comment out the above with command/ctrl-/ to make X-risk constant
 # hit shift-return or click the little ▶ button just below to effect changes
 
-# ╔═╡ 8f1f27a3-b256-49c0-887a-377eeebb5745
-md"""
-### Expropriation risk (``e``)
-Distribution type: $(@getdisttype(etype, etypedefault[]))
-"""
-
-# ╔═╡ e2febb27-e7c9-4321-8dfa-16b5974274e8
-@control(etype, emetaparams, emetaparamsdefault, -1:.0001:1)
-
-# ╔═╡ 37c83e3a-432d-4ec9-8193-9fa23342b838
-begin
-e = @assign(etype, emetaparams)
-
-md"""
-``e`` is the annual risk of that philanthropy will end because of (government) expropriation of the assets. Expropriation might occur suddenly, or over many years through taxation. This risk affects the continuance of spending over time. It does _not_ affect the "flow-through" of any benefits from the spending that does occur (see below).
-
-The default of 0.2%/year comes from [the version 1 write-up](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.oj8x5fi6sy0).
-"""
-end
-
 # ╔═╡ 574c0bcc-05ae-4222-a76d-09df6bff411e
 md"""
 ## Other donors
 """
-
-# ╔═╡ f204d544-aa38-474f-95e7-9014edeb019f
-md"""
-### Growth in exogenous spending (``g``)
-Distribution type: $(@getdisttype(gtype, gtypedefault[]))
-"""
-
-# ╔═╡ 613c0bd8-e730-40ed-b021-05ad62037c04
-@control(gtype, gmetaparams, gmetaparamsdefault, -1:.0001:1)
-
-# ╔═╡ 889773c3-dc87-4ff3-b364-bf60b76de2e1
-begin
-g = @assign(gtype, gmetaparams)
-
-md"""
-``g`` is the anual percentage growth in exogenous spending on our causes, i.e., spending that is not influenced by our decisions. If the growth is positive, it reduces grantmaking opportunities over time, and puts a premium on giving earlier.  The defaults come from [fall 2023](https://docs.google.com/spreadsheets/d/1K-j1C8_-oxh2nXfHgmKm_hxSvgYNhHl3zBeQ9AMMM00/edit?gid=935943732#gid=935943732&range=A1).
-
-The model simulates exogenous spending and calculates our impact using the formula at the end of the mathematical statement above.
-"""
-end
-
-# ╔═╡ c7d57b24-a644-4a4d-b77b-ec25b329ff42
-md"""
-### Initial crowding-in rate (``C_1``)
-Distribution type: $(@getdisttype(C₁type, C₁typedefault[]))
-"""
-
-# ╔═╡ a9459bab-1b78-497a-becb-a735557046f7
-@control(C₁type, C₁metaparams, C₁metaparamsdefault, -1:.01:10)
-
-# ╔═╡ 189735c7-9809-4b81-9e57-cab06c9c714b
-begin
-C₁ = @assign(C₁type, C₁metaparams)
-
-md"""
-``C_1`` is initial crowding-in rate of our giving, i.e., the rate of increase in our effective giving caused by other donors copying our funding choices.
-
-It should _not_ be seen as including purposely leveraged funding, since such leveraging is reflected in higher cost-effectiveness. Indeed, use of leverage in LEAF and the regranting challenge is a good example of our learning by doing, which is captured elsewhere in the model.
-
-Here too, the priors are copied from the version 1 model and need to be revisited in a "post-GiveWell" world.
-"""
-end
-
-# ╔═╡ d5071867-4a64-44f2-89a0-62de047dcd8c
-md"""
-### Total growth/decline in crowding-in, phase 1 (``∂C``)
-Distribution type: $(@getdisttype(∂Ctype, ∂Ctypedefault[]))
-"""
-
-# ╔═╡ fc6094b6-1de0-4684-a8a7-013544cf9ef6
-@control(∂Ctype, ∂Cmetaparams, ∂Cmetaparamsdefault, -1:.001:1)
-
-# ╔═╡ 76ade393-1507-449c-9f87-4b8062a30cf7
-begin
-∂C = @assign(∂Ctype, ∂Cmetaparams)
-
-md"""
-``∂C`` is a multiplier for cumulative growth or decline in ``C`` during the first period (decade). A value of 1.3 would mean 30% growth in total over phase 1, while 0.7 would mean 30% decline.
-
-Unlike the growth of exogenous spending, the crowding-in multiplier is assumed to change only in phase 1. This structural distinction can be erased by setting ``T_2`` to ``0`` above and setting ``T_1`` to the length of the full simulation period.
-"""
-end
 
 # ╔═╡ 7c6dc66d-a893-485b-8057-e04f668e12ef
 md"""
@@ -899,6 +573,25 @@ begin
 end;
 # hit shift-return or click the little ▶ button just below to effect changes
 
+# ╔═╡ 72dd2e82-fa0d-4500-bb67-6ee615398b62
+md"""
+### Initial assets (``A_0``)
+
+Distribution type: $(@getdisttype(lnA₀type, lnA₀typedefault[]))
+"""
+
+# ╔═╡ 817d5e1f-9d9c-4c74-8d81-0c5aff46415b
+@control(lnA₀type, lnA₀metaparams, lnA₀metaparamsdefault, 1:100_000, xform=exp)
+
+# ╔═╡ 224446c2-6a8e-46b9-9780-7b9dc5c9b21d
+begin
+	lnA₀ = @assign(lnA₀type, lnA₀metaparams, xform=log)
+	md"""Values are in million $.
+	     
+	Note: Distributions are here interpreted as applying to the _log_ of initial assets.
+	"""
+end
+
 # ╔═╡ aacaa244-c6d3-47ec-a6fd-68278f108303
 begin
 	update_to_loaded_params
@@ -921,6 +614,174 @@ begin
 	"""
 end
 
+# ╔═╡ d9029735-fd6a-4032-8480-44b2624501a9
+md"""
+## Diminishing returns within a year (``η``)
+Distribution type: $(@getdisttype(ηtype, ηtypedefault[]))
+"""
+
+# ╔═╡ c35e5119-a9c4-4575-b199-68c21ac48c54
+@control(ηtype, ηmetaparams, ηmetaparamsdefault, 0:.01:1)
+
+# ╔═╡ f1a7bbba-91d1-4a2b-b907-723df653de3c
+begin
+	η = @assign(ηtype, ηmetaparams)
+		
+	md"""
+	``1 – \eta`` is the elasticity of philanthropic good to philanthropy: each 1% increase in giving increases total impact ``(1 – \eta)``%. ``\eta = 0`` makes the relationship linear. ``\eta = 1`` makes it sort of logarithmic.[^1] Assuming ``\eta>0``, total impact grows more slowly than total giving.
+	
+	Taking the difference between ``1`` and ``1-\eta``, average impact per dollar falls by ``\eta``% for each ``1``% increase in giving. It works out that our _marginal_ impact, which ideally is our bar, falls at the same rate.
+	
+	The defaults are copied from this [fall 2023 spreadsheet](https://docs.google.com/spreadsheets/d/1K-j1C8_-oxh2nXfHgmKm_hxSvgYNhHl3zBeQ9AMMM00/edit?gid=935943732#gid=935943732).
+	
+	Peter Favaloro [estimated](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.1snwsiiw44hu) _η_ = 0.37 from data on GiveWell charities assembled by Alex Cohen.
+	
+	In Feb 2023, Martin Gould [estimated](https://docs.google.com/document/d/1SJnUSj8Dp5VQpuKQXSA6PP4g9hSwvx1O5OA8Q3HkOjo/edit?tab=t.0) _η_ = 0.3–0.7 for FAW going forward.
+
+	[^1]: Footnote: the relevant term of the utility function is ``y_t^{1-\eta}/(1-\eta)``. If it were ``(y_t^{1-\eta}-1)/(1-\eta)`` then it would [converge to logarithmic](https://en.wikipedia.org/wiki/Isoelastic_utility) as ``\eta\rightarrow1``.
+	"""
+end
+
+# ╔═╡ f75fa40c-5af7-4eb7-ab86-3b3f9acb0dce
+md"""
+### Total exogenous learning (``L_{max}``)
+Distribution type: $(@getdisttype(Lₘₐₓtype, Lₘₐₓtypedefault[]))
+"""
+
+# ╔═╡ 62a746fc-5455-4789-b5db-4cfb737762dd
+@control(Lₘₐₓtype, Lₘₐₓmetaparams, Lₘₐₓmetaparamsdefault, 0:.01:10)
+
+# ╔═╡ 9bc51dce-4d25-4900-9c27-4ca1b2b351a0
+begin
+	Lₘₐₓ = @assign(Lₘₐₓtype, Lₘₐₓmetaparams)
+
+	md"""
+	``L_{max}`` is a multiplier that sets total exogenous learning in the first phase, as [defined in version1 of the model](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.l3qhcyjigysm). The _endogenous_ learning in version 2 of the model---learning driven by past grantmaking experience rather than the pure passage of time---tends to make this parameter obsolete. Since it is a multiplier, setting it to 1 turns off exogenous learning.
+	"""
+end
+
+# ╔═╡ bf7a906f-11af-4d4b-8c65-e365d0661cf5
+md"""
+#### Depreciation of experience (``δ_l``)
+Distribution type: $(@getdisttype(δₗtype, δₗtypedefault[]))
+"""
+
+# ╔═╡ 3588ce71-0d64-42d0-9610-3b9f669c8c65
+@control(δₗtype, δₗmetaparams, δₗmetaparamsdefault, 0:.0001:1)
+
+# ╔═╡ 26a2c19f-e401-4671-81bf-5c24339b1bf4
+begin
+δₗ = @assign(δₗtype, δₗmetaparams)
+
+md"""
+``δ_l`` is the annualized rate at which past experience---or past investments in OP capacity or field-building---loses value, as staff turns over, or a changing world makes our experience and investments less relevant. If ``δ_l = 0``, then the utility function is a classic learning curve in which productivity depends with constant elasticity on cumulative production. Experience never loses value. If ``δ_l > 0``, this would seem to reward building up the organization and, having done so, spending down more aggressively before the accumulated experience effectively depreciates.
+"""
+end
+
+# ╔═╡ 5087952f-4b1d-497c-9c1b-ed5ebae34c81
+md"""
+#### Diminishing learning returns from each year's spending (``ϕ``)
+Distribution type: $(@getdisttype(ϕtype, ϕtypedefault[]))
+"""
+
+# ╔═╡ 8bd60ffd-b287-468c-96f2-6aa0962f4495
+@control(ϕtype, ϕmetaparams, ϕmetaparamsdefault, 0:.01:1)
+
+# ╔═╡ 0554c422-b130-4a8e-abe6-2f4ad7ae8956
+begin
+ϕ = @assign(ϕtype, ϕmetaparams)
+
+md"""
+Our capacity to learn through each year's spending might face diminishing returns. Perhaps if we disburse \$1 billion in one year rather than over ten, we will learn less. The model expresses this possibility through the exoponent ``ϕ`` on each year's, spending, ``y_t``. (See the first equation under Mathematical Statement above.) Setting ``\phi=1`` implies no diminishing returns within each year. Setting it between 0 and 1 causes the rate of return to diminish.
+"""
+end
+
+# ╔═╡ 218b6bc8-453a-44eb-97bc-6e8ac0851422
+md"""
+#### Learning rate (``c``)
+Distribution type: $(@getdisttype(ctype, ctypedefault[]))
+"""
+
+# ╔═╡ ebf524ce-55ec-446f-b9fc-84d76e5dad0b
+@control(ctype, cmetaparams, cmetaparamsdefault, 0:.01:2)
+
+# ╔═╡ 0952a455-f9e4-4fcf-a285-a16f57f46042
+begin
+c = @assign(ctype, cmetaparams)
+
+md"""
+_c_ is the elasticity of selection power---how much $ funding opportunity that we find at each cost-effectiveness level---to "cumulative production" of grants. It is the rate of endogenous learning...or field-building, or any other spending-correlated investment that boosts future productivity.
+
+This framing of learning-by-doing, with price or productivity related linearly to cumulative production on a log-log plot, is well established. The prices of [lithium batteries](https://ourworldindata.org/battery-price-decline) and [solar cells](https://ourworldindata.org/cheap-renewables-growth) have fallen 20% for each doubling of cumulative global production. Inverting that number, productivity has risen ``1/(1-.2)=125\%`` for each doubling. To convert that to an elasticity like ``c``, divide it by ``\ln 2`` (or multiply by ``1.44``). That gives a learning rate of 0.32: each 1% increase in cumulative production was accompanied by a 32% rise in output per dollar.
+
+In this set-up, if our giving plateaus, learning slows, because each successive doubling of cumulative grantmaking takes longer.
+
+Since learning enters the model through the productivity multiplier ``S_t^\eta = (L_t^c)^\eta = L_t^{c\eta}``, arguably it is the product ``c\eta`` that best corresponds to observed learning rates such as ``0.32``. If we thought ``\eta=0.5``, then we might prefer ``c=0.64``, to arrange that ``c\eta=0.32``.
+
+Learning-by-manufacturing is not obviously a good model for learning-by-grantmaking. Manufacturers benefit from tight feedback loops in a way that we and our grantees [rarely do](https://www.openphilanthropy.org/research/three-key-issues-ive-changed-my-mind-about/#id-3-changing-my-mind-about-general-properties-of-promising-ideas-and-interventions). So maybe we learn less efficiently. On the other hand, our bar, a rough indicator of our marginal and average effectiveness, rose ~20x between 2017 and 2024 while our cumulative grantmaking grew 10x. If we attribute the first solely to the second, then we achieved extraordinarily rapid endogenous learning, with ``c\eta\approx 2``.
+"""
+end
+
+# ╔═╡ 9fdff29f-0a0a-4bf9-b083-563d35a46b2b
+md"""
+Distribution type: $(@getdisttype(rtype, rtypedefault[]))
+"""
+
+# ╔═╡ 7a1ea043-8743-4943-9ba7-f4afa02e032b
+@control(rtype, rmetaparams, rmetaparamsdefault, -100:.001:100)
+
+# ╔═╡ 416f25f2-15f9-4c9d-885a-b2779e195990
+begin
+	r = @assign(rtype, rmetaparams)
+	
+	md"""
+	``r`` is the anual rate of return on assets. The defaults are [copied from the version 1 model](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.xjnyrwk5etbt).
+	
+	(If the "low" and "high" values look swapped, that is not a mistake. The models have established the convention that "high" values reward more giving now. The convention matters only for interpretation of cross-parameter correlations.)
+
+	Since 1871, the S&P 500 (or an approximation thereof in the early years) [has returned](https://shillerdata.com) a compound annual growth rate (CAGR) of 6.95%, including dividends and adjusting for inflation. The returns exhibit essentially no year-to-year correlation or long-term trend.
+
+	Past stock market performance is a good baseline for predicting future performance. However, U.S. returns were achieved as America became the greatest economic power in history. And the spectacular gains in recent decades [can](https://www.federalreserve.gov/econres/feds/files/2023041pap.pdf) be [attributed](https://www.gspublishing.com/content/research/en/reports/2024/10/18/29e68989-0d2c-4960-bd4b-010a101f711e.html) to unsustainable factors such as falling interest rates and corporate tax rates. Stocks did less well elsewhere, and could therefore be reasonably predicted to do less well in the U.S. going forward. Here are returns for 1900--2022 from [Credit Suisse](https://www.credit-suisse.com/media/assets/corporate/docs/about-us/research/publications/credit-suisse-global-investment-returns-yearbook-2023-summary-edition.pdf):
+	"""
+end
+
+# ╔═╡ e4bf8fe4-47a7-4c14-99b9-f39c6c733fed
+md"""
+Distribution type: $(@getdisttype(∂CEtype, ∂CEtypedefault[]))
+"""
+
+# ╔═╡ c050d60d-3409-4c6f-956d-b13dfe1dfcc2
+@control(∂CEtype, ∂CEmetaparams, ∂CEmetaparamsdefault, -1:.0001:1)
+
+# ╔═╡ d8682222-b840-4f06-b953-44cd4c6a53a7
+begin
+∂CE = @assign(∂CEtype, ∂CEmetaparams)
+
+md"""
+``∂CE`` is the anual rate of decline (or rise, if ``∂CE < 0``) in our effectiveness for exogenous reasons. It represents the net effect of forces such as declining global poverty and advances in medical technology.
+
+The defaults are copied from the [falll 2023 exercise](https://docs.google.com/spreadsheets/d/1K-j1C8_-oxh2nXfHgmKm_hxSvgYNhHl3zBeQ9AMMM00/edit?gid=935943732#gid=935943732&range=A1). See the version 1 [spenddown write-up](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.mfmlgc8fv17t) for a thoughtful discussion.
+"""
+end
+
+# ╔═╡ c9b1a39f-881e-4757-a555-f6daf3e26a77
+md"""
+### Values drift (``v``)
+Distribution type: $(@getdisttype(vtype, vtypedefault[]))
+"""
+
+# ╔═╡ e2866a95-73a5-4c39-8f7d-403326ef0e37
+@control(vtype, vmetaparams, vmetaparamsdefault, -1:.0001:1)
+
+# ╔═╡ c28390d8-b2a0-489f-80a0-c54583fb843c
+begin
+v = @assign(vtype, vmetaparams)
+
+md"""
+``v`` is the anual rate of decline (or rise, if ``v < 0``) in the net present value of our impact owing to mission drift. See [this section](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.iox25644x5fl) of the write-up of the version 1 model.
+"""
+end
+
 # ╔═╡ e62a679b-6a01-47cc-beaf-9bed178c763a
 begin
 update_to_loaded_params
@@ -936,6 +797,83 @@ For completeness, the model nevertheless includes flow-through. It introduces tw
 
 #### Initial flow-through rate
 Distribution type: $(@getdisttype(ftype, ftypedefault[]))
+"""
+end
+
+# ╔═╡ d5938b8a-03dc-4706-afa8-b018ed13d19d
+@control(ftype, fmetaparams, fmetaparamsdefault, -1:.0001:1)
+
+# ╔═╡ 02f745b2-8ce7-4d99-a6ba-0ac2201fe9d7
+begin
+f = @assign(ftype, fmetaparams)
+	
+	md"""
+Here a value of 0.01 means that initially the good done by a grant compounds at 1%/year. The default values are taken from the [Version 1 write-up](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?pli=1&tab=t.0#heading=h.td08plqwplqx).
+"""
+end
+
+# ╔═╡ 3aca7360-a8a8-4dfc-b61f-4670f1cd6ac7
+md"""
+
+#### Decay of flow-through over time (``\delta_f``)
+
+Annual decay in flow-through rate: $(@getdisttype(δftype, δftypedefault[]))
+"""
+
+# ╔═╡ b19ca241-8373-44eb-a572-ccd24c614261
+@control(δftype, δfmetaparams, δfmetaparamsdefault, 0:.001:1)
+
+# ╔═╡ 7605db32-345f-4f77-a51b-3eae23359cc4
+begin
+δf = @assign(δftype, δfmetaparams);
+	md"""
+	While the good we do might initially compound at the rate or rates specified above, it seems plausible that over the long run they would peter out rather than compounding toward infinity. _Consequences_ might unfurl indefinitely, but whether for good or ill would become increasingly uncertain.
+
+	This parameter describes such decay in benefits. For example if the good done by grantmaking in year 1 compounded by 5% in year 2 (``f = 0.05``), and if ``\delta_f=0.01``, then the compounding between years 2 and 3 would be ``5\% \times (1-0.01) = 4.95\%``. The flow-through rate would continue decaying thereafter.
+	
+	As long as ``\delta_f>0``, _total_ flow-through will not grow without bound. If ``\delta_f=0``, then flow-through is dropped from the model.
+	"""
+end
+
+# ╔═╡ 015bceb5-1406-40ff-b2ed-1e9559111ec9
+md"""
+### X-risk/end-of-scarcity through 2100 (``X``)
+Distribution type: $(@getdisttype(Xtype, Xtypedefault[]))
+"""
+
+# ╔═╡ 1d3d2829-0bf1-428a-bb21-d11abddbfdcc
+@control(Xtype, Xmetaparams, Xmetaparamsdefault, -1:.001:1)
+
+# ╔═╡ 6e0dde3b-91b5-4486-a050-854b8cccb694
+begin
+X = @assign(Xtype, Xmetaparams)
+
+md"""
+``X`` is the risk that philanthropy will end by 2100 because of extinction---or because of its opposite, the end of scarcity. This risk affects not how long spending continues but how long any benefits of any spending "flow through" into the future (see next parameter). See [this section](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.oj8x5fi6sy0) of the version 1 write-up.
+
+The default high value, 0.167, comes from Toby Ord's [estimate](https://theprecipice.com) that there is 1-in-6 chance of human extinction by 2100. The default low and median values come from the Existential Risk Persuasion Tournament (XPT). The XPT [extracted](https://static1.squarespace.com/static/635693acf15a3e2a14a56a4a/t/64f0a7838ccbf43b6b5ee40c/1693493128111/XPT.pdf#page=6) a median estimate of 6% from experts on various existential risks (95% confidence interval [3.41%, 10.00%]) and just 1% ([0.55%, 1.23%]) from non-expert "superforecasters."
+
+In the version 2 model, X-risk is simulated rather than being expressed as discount rate. In each simulation run, an unfair coin is flipped each year. When it comes up heads, the timeline halts, and no more spending or flow-through occurs.
+"""
+end
+
+# ╔═╡ 8f1f27a3-b256-49c0-887a-377eeebb5745
+md"""
+### Expropriation risk (``e``)
+Distribution type: $(@getdisttype(etype, etypedefault[]))
+"""
+
+# ╔═╡ e2febb27-e7c9-4321-8dfa-16b5974274e8
+@control(etype, emetaparams, emetaparamsdefault, -1:.0001:1)
+
+# ╔═╡ 37c83e3a-432d-4ec9-8193-9fa23342b838
+begin
+e = @assign(etype, emetaparams)
+
+md"""
+``e`` is the annual risk of that philanthropy will end because of (government) expropriation of the assets. Expropriation might occur suddenly, or over many years through taxation. This risk affects the continuance of spending over time. It does _not_ affect the "flow-through" of any benefits from the spending that does occur (see below).
+
+The default of 0.2%/year comes from [the version 1 write-up](https://docs.google.com/document/d/1HrTRJBMrSxdnskgzfv8sNUKHkRYoOvtS7T1owKUXxJU/edit?tab=t.0#heading=h.oj8x5fi6sy0).
 """
 end
 
@@ -965,6 +903,68 @@ begin
 	"""
 end
 
+# ╔═╡ f204d544-aa38-474f-95e7-9014edeb019f
+md"""
+### Growth in exogenous spending (``g``)
+Distribution type: $(@getdisttype(gtype, gtypedefault[]))
+"""
+
+# ╔═╡ 613c0bd8-e730-40ed-b021-05ad62037c04
+@control(gtype, gmetaparams, gmetaparamsdefault, -1:.0001:1)
+
+# ╔═╡ 889773c3-dc87-4ff3-b364-bf60b76de2e1
+begin
+g = @assign(gtype, gmetaparams)
+
+md"""
+``g`` is the anual percentage growth in exogenous spending on our causes, i.e., spending that is not influenced by our decisions. If the growth is positive, it reduces grantmaking opportunities over time, and puts a premium on giving earlier.  The defaults come from [fall 2023](https://docs.google.com/spreadsheets/d/1K-j1C8_-oxh2nXfHgmKm_hxSvgYNhHl3zBeQ9AMMM00/edit?gid=935943732#gid=935943732&range=A1).
+
+The model simulates exogenous spending and calculates our impact using the formula at the end of the mathematical statement above.
+"""
+end
+
+# ╔═╡ c7d57b24-a644-4a4d-b77b-ec25b329ff42
+md"""
+### Initial crowding-in rate (``C_1``)
+Distribution type: $(@getdisttype(C₁type, C₁typedefault[]))
+"""
+
+# ╔═╡ a9459bab-1b78-497a-becb-a735557046f7
+@control(C₁type, C₁metaparams, C₁metaparamsdefault, -1:.01:10)
+
+# ╔═╡ 189735c7-9809-4b81-9e57-cab06c9c714b
+begin
+C₁ = @assign(C₁type, C₁metaparams)
+
+md"""
+``C_1`` is initial crowding-in rate of our giving, i.e., the rate of increase in our effective giving caused by other donors copying our funding choices.
+
+It should _not_ be seen as including purposely leveraged funding, since such leveraging is reflected in higher cost-effectiveness. Indeed, use of leverage in LEAF and the regranting challenge is a good example of our learning by doing, which is captured elsewhere in the model.
+
+Here too, the priors are copied from the version 1 model and need to be revisited in a "post-GiveWell" world.
+"""
+end
+
+# ╔═╡ d5071867-4a64-44f2-89a0-62de047dcd8c
+md"""
+### Total growth/decline in crowding-in, phase 1 (``∂C``)
+Distribution type: $(@getdisttype(∂Ctype, ∂Ctypedefault[]))
+"""
+
+# ╔═╡ fc6094b6-1de0-4684-a8a7-013544cf9ef6
+@control(∂Ctype, ∂Cmetaparams, ∂Cmetaparamsdefault, -1:.001:1)
+
+# ╔═╡ 76ade393-1507-449c-9f87-4b8062a30cf7
+begin
+∂C = @assign(∂Ctype, ∂Cmetaparams)
+
+md"""
+``∂C`` is a multiplier for cumulative growth or decline in ``C`` during the first period (decade). A value of 1.3 would mean 30% growth in total over phase 1, while 0.7 would mean 30% decline.
+
+Unlike the growth of exogenous spending, the crowding-in multiplier is assumed to change only in phase 1. This structural distinction can be erased by setting ``T_2`` to ``0`` above and setting ``T_1`` to the length of the full simulation period.
+"""
+end
+
 # ╔═╡ 6c0fd4ad-8971-4e2d-946d-d29c236e14e3
 begin
 	getkwargs(;kwargs...) = kwargs  # function to turn kwarg list into Vector{Pair}
@@ -976,7 +976,7 @@ begin
 	
 		start = fill(logit(S(.1)), m.T-1)  # start: spending 10%/year
 		objective = (F, G, H, x) -> sim(m, F, G, H, x)
-		o = optimize(Optim.only_fgh!(objective), start, NewtonTrustRegion())		
+		o = optimize(NLSolversBase.only_fgh!(objective), start, NewtonTrustRegion())		
 
 		# call once more to get EV by year at optimum
 		sim(m, nothing, nothing, nothing, Optim.minimizer(o), byyear=true)
@@ -1086,7 +1086,7 @@ begin
 		
 		EVplot = S[]
 		for x₁ ∈ xplot
-		  global oc = optimize(Optim.only_fgh!(objective₁(fill(x₁,l))), startc, NewtonTrustRegion())
+		  global oc = optimize(NLSolversBase.only_fgh!(objective₁(fill(x₁,l))), startc, NewtonTrustRegion())
 		  global startc = Optim.minimizer(oc)
 		  push!(EVplot, -Optim.minimum(oc))
 		end
@@ -1183,6 +1183,7 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LogExpFunctions = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
+NLSolversBase = "d41bc354-129a-5804-8e4c-c37616107c6c"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -1190,29 +1191,31 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-AxisKeys = "~0.2.15"
-CairoMakie = "~0.12.15"
-ChainRulesCore = "~1.25.1"
-DataFrames = "~1.7.0"
-Distributions = "~0.25.113"
-LogExpFunctions = "~0.3.28"
-Optim = "~1.9.4"
-PlutoUI = "~0.7.60"
-StatsBase = "~0.34.3"
+AxisKeys = "~0.2.17"
+CairoMakie = "~0.15.14"
+ChainRulesCore = "~1.26.1"
+DataFrames = "~1.8.2"
+Distributions = "~0.25.131"
+LogExpFunctions = "~1.0.1"
+NLSolversBase = "~8.0.1"
+Optim = "~2.3.2"
+PlutoUI = "~0.7.63"
+StatsBase = "~0.34.13"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.5"
+julia_version = "1.12.7"
 manifest_format = "2.0"
-project_hash = "a18ae775c813fe4b5c983f4e977e4d97e380b8a5"
+project_hash = "f456a07a86335c031c1561a0b737d06009fdd3c1"
 
 [[deps.ADTypes]]
-git-tree-sha1 = "e2478490447631aedba0823d4d7a80b2cc8cdb32"
+deps = ["PrecompileTools"]
+git-tree-sha1 = "629de23e1c16911b439dabd2303c08af9575b226"
 uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
-version = "1.14.0"
+version = "1.24.0"
 
     [deps.ADTypes.extensions]
     ADTypesChainRulesCoreExt = "ChainRulesCore"
@@ -1246,11 +1249,27 @@ git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
 uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 version = "0.4.5"
 
+[[deps.Accessors]]
+deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "MacroTools"]
+git-tree-sha1 = "7063ad1083578215c7c4bf410368150abe8d5524"
+uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
+version = "0.1.45"
+weakdeps = ["AxisKeys", "IntervalSets", "LinearAlgebra", "StaticArrays", "StructArrays", "Test", "Unitful"]
+
+    [deps.Accessors.extensions]
+    AxisKeysExt = "AxisKeys"
+    IntervalSetsExt = "IntervalSets"
+    LinearAlgebraExt = "LinearAlgebra"
+    StaticArraysExt = "StaticArrays"
+    StructArraysExt = "StructArrays"
+    TestExt = "Test"
+    UnitfulExt = "Unitful"
+
 [[deps.Adapt]]
-deps = ["LinearAlgebra", "Requires"]
-git-tree-sha1 = "f7817e2e585aa6d924fd714df1e2a84be7896c60"
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "7c2c19b5a26e601634bf718490b89d59685f122e"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "4.3.0"
+version = "4.7.1"
 weakdeps = ["SparseArrays", "StaticArrays"]
 
     [deps.Adapt.extensions]
@@ -1280,31 +1299,38 @@ version = "1.1.2"
 
 [[deps.ArrayInterface]]
 deps = ["Adapt", "LinearAlgebra"]
-git-tree-sha1 = "9606d7832795cbef89e06a550475be300364a8aa"
+git-tree-sha1 = "1aec1ff0dcaa83a484e7f72097562fa3102c6722"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.19.0"
+version = "7.30.2"
 
     [deps.ArrayInterface.extensions]
+    ArrayInterfaceAMDGPUExt = "AMDGPU"
     ArrayInterfaceBandedMatricesExt = "BandedMatrices"
     ArrayInterfaceBlockBandedMatricesExt = "BlockBandedMatrices"
     ArrayInterfaceCUDAExt = "CUDA"
-    ArrayInterfaceCUDSSExt = "CUDSS"
+    ArrayInterfaceCUDSSExt = ["CUDSS", "CUDA"]
     ArrayInterfaceChainRulesCoreExt = "ChainRulesCore"
     ArrayInterfaceChainRulesExt = "ChainRules"
+    ArrayInterfaceFillArraysExt = "FillArrays"
     ArrayInterfaceGPUArraysCoreExt = "GPUArraysCore"
+    ArrayInterfaceGPUArraysCoreTrackerExt = ["GPUArraysCore", "Tracker"]
+    ArrayInterfaceMetalExt = "Metal"
     ArrayInterfaceReverseDiffExt = "ReverseDiff"
     ArrayInterfaceSparseArraysExt = "SparseArrays"
     ArrayInterfaceStaticArraysCoreExt = "StaticArraysCore"
     ArrayInterfaceTrackerExt = "Tracker"
 
     [deps.ArrayInterface.weakdeps]
+    AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
     BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
     BlockBandedMatrices = "ffab5731-97b5-5995-9138-79e8c1846df0"
     CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
     CUDSS = "45b445bb-4962-46a0-9369-b4df9d0f772e"
     ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
     GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
+    Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
     ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
     StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
@@ -1315,10 +1341,10 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 version = "1.11.0"
 
 [[deps.Automa]]
-deps = ["PrecompileTools", "SIMD", "TranscodingStreams"]
-git-tree-sha1 = "a8f503e8e1a5f583fbef15a8440c8c7e32185df2"
+deps = ["PrecompileTools", "TranscodingStreams"]
+git-tree-sha1 = "94eab0b3ccdcac361188cc661daf69d4433c1818"
 uuid = "67c07d97-cdcb-5c2c-af73-a7f9c32a568b"
-version = "1.1.0"
+version = "1.2.0"
 
 [[deps.AxisAlgorithms]]
 deps = ["LinearAlgebra", "Random", "SparseArrays", "WoodburyMatrices"]
@@ -1328,20 +1354,21 @@ version = "1.1.0"
 
 [[deps.AxisArrays]]
 deps = ["Dates", "IntervalSets", "IterTools", "RangeArrays"]
-git-tree-sha1 = "16351be62963a67ac4083f748fdb3cca58bfd52f"
+git-tree-sha1 = "4126b08903b777c88edf1754288144a0492c05ad"
 uuid = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
-version = "0.4.7"
+version = "0.4.8"
 
 [[deps.AxisKeys]]
 deps = ["IntervalSets", "LinearAlgebra", "NamedDims", "Tables"]
-git-tree-sha1 = "cb91d1fe1fb8ebde0a879f1a7f26d745956ce0cf"
+git-tree-sha1 = "74f4672d77b0a98c808880a556768fe2ccf99b13"
 uuid = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
-version = "0.2.15"
+version = "0.2.17"
 
     [deps.AxisKeys.extensions]
     AbstractFFTsExt = "AbstractFFTs"
     ChainRulesCoreExt = "ChainRulesCore"
     CovarianceEstimationExt = "CovarianceEstimation"
+    InterpolationsExt = "Interpolations"
     InvertedIndicesExt = "InvertedIndices"
     LazyStackExt = "LazyStack"
     OffsetArraysExt = "OffsetArrays"
@@ -1352,6 +1379,7 @@ version = "0.2.15"
     AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
     CovarianceEstimation = "587fd27a-f159-11e8-2dae-1979310e6154"
+    Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
     InvertedIndices = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
     LazyStack = "1fad7336-0346-5a1a-a56f-a06ba010965b"
     OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
@@ -1363,9 +1391,9 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
 
 [[deps.BaseDirs]]
-git-tree-sha1 = "03fea4a4efe25d2069c2d5685155005fc251c0a1"
+git-tree-sha1 = "8c290a1b223deaeea9aea44b235d24546da8eb98"
 uuid = "18cc8868-cbac-4acf-b575-c8ff214dc66f"
-version = "1.3.0"
+version = "1.4.0"
 
 [[deps.Bzip2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1402,37 +1430,43 @@ version = "1.1.1"
 
 [[deps.CairoMakie]]
 deps = ["CRC32c", "Cairo", "Cairo_jll", "Colors", "FileIO", "FreeType", "GeometryBasics", "LinearAlgebra", "Makie", "PrecompileTools"]
-git-tree-sha1 = "0afa2b4ac444b9412130d68493941e1af462e26a"
+git-tree-sha1 = "3495bfc164949714579501b825b8e5e2cce7c56f"
 uuid = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-version = "0.12.18"
+version = "0.15.14"
 
 [[deps.Cairo_jll]]
-deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "JLLWrappers", "LZO_jll", "Libdl", "Pixman_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "fde3bf89aead2e723284a8ff9cdf5b551ed700e8"
+deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "JLLWrappers", "Libdl", "Pixman_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
+git-tree-sha1 = "1fa950ebc3e37eccd51c6a8fe1f92f7d86263522"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
-version = "1.18.5+0"
+version = "1.18.7+0"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
-git-tree-sha1 = "1713c74e00545bfe14605d2a2be1712de8fbcb58"
+git-tree-sha1 = "12177ad6b3cad7fd50c8b3825ce24a99ad61c18f"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-version = "1.25.1"
+version = "1.26.1"
 weakdeps = ["SparseArrays"]
 
     [deps.ChainRulesCore.extensions]
     ChainRulesCoreSparseArraysExt = "SparseArrays"
 
+[[deps.CodecZstd]]
+deps = ["TranscodingStreams", "Zstd_jll"]
+git-tree-sha1 = "da54a6cd93c54950c15adf1d336cfd7d71f51a56"
+uuid = "6b39b394-51ab-5f42-8807-6242bab2b4c2"
+version = "0.8.7"
+
 [[deps.ColorBrewer]]
 deps = ["Colors", "JSON"]
-git-tree-sha1 = "e771a63cc8b539eca78c85b0cabd9233d6c8f06f"
+git-tree-sha1 = "07da79661b919001e6863b81fc572497daa58349"
 uuid = "a2cac450-b92f-5266-8821-25eda20663c8"
-version = "0.4.1"
+version = "0.4.2"
 
 [[deps.ColorSchemes]]
 deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
-git-tree-sha1 = "403f2d8e209681fcbd9468a8514efff3ea08452e"
+git-tree-sha1 = "b0fd3f56fa442f81e0a47815c92245acfaaa4e34"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.29.0"
+version = "3.31.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -1456,17 +1490,17 @@ git-tree-sha1 = "37ea44092930b1811e666c3bc38065d7d87fcc74"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.13.1"
 
-[[deps.CommonSubexpressions]]
-deps = ["MacroTools"]
-git-tree-sha1 = "cda2cfaebb4be89c9084adaca7dd7333369715c5"
-uuid = "bbf7d656-a473-5ed7-a52c-81e309532950"
-version = "0.3.1"
+[[deps.CommonSolve]]
+deps = ["PrecompileTools"]
+git-tree-sha1 = "6c389fa857f6ca5a95474b52a52023fd77f24cb7"
+uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
+version = "0.2.14"
 
 [[deps.Compat]]
 deps = ["TOML", "UUIDs"]
-git-tree-sha1 = "8ae8d32e09f0dcf42a36b90d4e17f5dd2e4c4215"
+git-tree-sha1 = "9d8a54ce4b17aa5bdce0ea5c34bc5e7c340d16ad"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.16.0"
+version = "4.18.1"
 weakdeps = ["Dates", "LinearAlgebra"]
 
     [deps.Compat.extensions]
@@ -1475,7 +1509,22 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.1+0"
+version = "1.3.1+2"
+
+[[deps.CompositionsBase]]
+git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
+uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
+version = "0.1.2"
+weakdeps = ["InverseFunctions"]
+
+    [deps.CompositionsBase.extensions]
+    CompositionsBaseInverseFunctionsExt = "InverseFunctions"
+
+[[deps.ComputePipeline]]
+deps = ["Observables", "Preferences"]
+git-tree-sha1 = "7bc84b769c1d384315e7b5c4ac03a6c303e6cf35"
+uuid = "95dc2771-c249-4cd0-9c9f-1f3b4330693c"
+version = "0.1.8"
 
 [[deps.ConstructionBase]]
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
@@ -1493,10 +1542,22 @@ git-tree-sha1 = "439e35b0b36e2e5881738abc8857bd92ad6ff9a8"
 uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
 version = "0.6.3"
 
+[[deps.CoreMath]]
+deps = ["CoreMath_jll"]
+git-tree-sha1 = "8c0480f92b1b1796239156a1b9b1bfb1b39499b4"
+uuid = "b7a15901-be09-4a0e-87d2-2e66b0e09b5a"
+version = "0.1.0"
+
+[[deps.CoreMath_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "a692a4c1dc59a4b8bc0b6403876eb3250fde2bc3"
+uuid = "a38c48d9-6df1-5ac9-9223-b6ada3b5572b"
+version = "0.1.0+0"
+
 [[deps.Crayons]]
-git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
+git-tree-sha1 = "54b76cbb40d9a0f5368c880725b2f141da77c94f"
 uuid = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
-version = "4.1.1"
+version = "4.2.0"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "abe83f3a2f1b857aac70ef8b269080af17764bbe"
@@ -1505,15 +1566,15 @@ version = "1.16.0"
 
 [[deps.DataFrames]]
 deps = ["Compat", "DataAPI", "DataStructures", "Future", "InlineStrings", "InvertedIndices", "IteratorInterfaceExtensions", "LinearAlgebra", "Markdown", "Missings", "PooledArrays", "PrecompileTools", "PrettyTables", "Printf", "Random", "Reexport", "SentinelArrays", "SortingAlgorithms", "Statistics", "TableTraits", "Tables", "Unicode"]
-git-tree-sha1 = "fb61b4812c49343d7ef0b533ba982c46021938a6"
+git-tree-sha1 = "5fab31e2e01e70ad66e3e24c968c264d1cf166d6"
 uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-version = "1.7.0"
+version = "1.8.2"
 
 [[deps.DataStructures]]
-deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "4e1fe97fdaed23e9dc21d4d664bea76b65fc50a0"
+deps = ["OrderedCollections"]
+git-tree-sha1 = "b0bc6d2cad1fed8b7fd59a1551a991cb3d2809e6"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.22"
+version = "0.19.6"
 
 [[deps.DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -1527,27 +1588,15 @@ version = "1.11.0"
 
 [[deps.DelaunayTriangulation]]
 deps = ["AdaptivePredicates", "EnumX", "ExactPredicates", "Random"]
-git-tree-sha1 = "5620ff4ee0084a6ab7097a27ba0c19290200b037"
+git-tree-sha1 = "4ac548adcad90c1d5d677af13568a748af4c952b"
 uuid = "927a84f5-c5f4-47a5-9785-b46e178433df"
-version = "1.6.4"
-
-[[deps.DiffResults]]
-deps = ["StaticArraysCore"]
-git-tree-sha1 = "782dd5f4561f5d267313f23853baaaa4c52ea621"
-uuid = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
-version = "1.1.0"
-
-[[deps.DiffRules]]
-deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
-git-tree-sha1 = "23163d55f885173722d1e4cf0f6110cdbaf7e272"
-uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
-version = "1.15.1"
+version = "1.6.7"
 
 [[deps.DifferentiationInterface]]
 deps = ["ADTypes", "LinearAlgebra"]
-git-tree-sha1 = "210933c93f39f832d92f9efbbe69a49c453db36d"
+git-tree-sha1 = "0693d8b0a4608ff289d228ab4c598df5894845cd"
 uuid = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
-version = "0.7.1"
+version = "0.7.21"
 
     [deps.DifferentiationInterface.extensions]
     DifferentiationInterfaceChainRulesCoreExt = "ChainRulesCore"
@@ -1557,8 +1606,9 @@ version = "0.7.1"
     DifferentiationInterfaceFiniteDiffExt = "FiniteDiff"
     DifferentiationInterfaceFiniteDifferencesExt = "FiniteDifferences"
     DifferentiationInterfaceForwardDiffExt = ["ForwardDiff", "DiffResults"]
-    DifferentiationInterfaceGPUArraysCoreExt = "GPUArraysCore"
+    DifferentiationInterfaceGPUArraysCoreExt = ["GPUArraysCore", "Adapt"]
     DifferentiationInterfaceGTPSAExt = "GTPSA"
+    DifferentiationInterfaceHyperHessiansExt = "HyperHessians"
     DifferentiationInterfaceMooncakeExt = "Mooncake"
     DifferentiationInterfacePolyesterForwardDiffExt = ["PolyesterForwardDiff", "ForwardDiff", "DiffResults"]
     DifferentiationInterfaceReverseDiffExt = ["ReverseDiff", "DiffResults"]
@@ -1571,6 +1621,7 @@ version = "0.7.1"
     DifferentiationInterfaceZygoteExt = ["Zygote", "ForwardDiff"]
 
     [deps.DifferentiationInterface.weakdeps]
+    Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
     DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
     Diffractor = "9f5e2b26-1114-432f-b630-d3fe2085c51c"
@@ -1582,6 +1633,7 @@ version = "0.7.1"
     ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
     GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
     GTPSA = "b27dd330-f138-47c5-815b-40db9dd9b6e8"
+    HyperHessians = "06b494a0-c8e0-40cc-ad32-d99506a00a6c"
     Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
     PolyesterForwardDiff = "98d1487c-24ca-40b6-b7ab-df2af84e126b"
     ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
@@ -1599,19 +1651,21 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 version = "1.11.0"
 
 [[deps.Distributions]]
-deps = ["AliasTables", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsAPI", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "3e6d038b77f22791b8e3472b7c633acea1ecac06"
+deps = ["AliasTables", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "Roots", "SpecialFunctions", "Statistics", "StatsAPI", "StatsBase", "StatsFuns"]
+git-tree-sha1 = "a958ab3a40c755563f5e1405c0846cb0446bf19d"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.120"
+version = "0.25.131"
 
     [deps.Distributions.extensions]
     DistributionsChainRulesCoreExt = "ChainRulesCore"
     DistributionsDensityInterfaceExt = "DensityInterface"
+    DistributionsSparseConnectivityTracerExt = "SparseConnectivityTracer"
     DistributionsTestExt = "Test"
 
     [deps.Distributions.weakdeps]
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
     DensityInterface = "b429d917-457f-4dbc-8f4c-0cc954292b1d"
+    SparseConnectivityTracer = "9f842d2f-2579-4b1d-911e-f412cf18a3f5"
     Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.DocStringExtensions]]
@@ -1622,7 +1676,7 @@ version = "0.9.5"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-version = "1.6.0"
+version = "1.7.0"
 
 [[deps.EarCut_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1631,50 +1685,39 @@ uuid = "5ae413db-bbd1-5e63-b57d-d24a61df00f5"
 version = "2.2.4+0"
 
 [[deps.EnumX]]
-git-tree-sha1 = "bddad79635af6aec424f53ed8aad5d7555dc6f00"
+git-tree-sha1 = "c49898e8438c828577f04b92fc9368c388ac783c"
 uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
-version = "1.0.5"
+version = "1.0.7"
 
 [[deps.ExactPredicates]]
 deps = ["IntervalArithmetic", "Random", "StaticArrays"]
-git-tree-sha1 = "b3f2ff58735b5f024c392fde763f29b057e4b025"
+git-tree-sha1 = "83231673ea4d3d6008ac74dc5079e77ab2209d8f"
 uuid = "429591f6-91af-11e9-00e2-59fbe8cec110"
-version = "2.2.8"
+version = "2.2.9"
 
 [[deps.Expat_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "d55dffd9ae73ff72f1c0482454dcf2ec6c6c4a63"
+git-tree-sha1 = "2bfb1e047e2ad0a5ca94365340bde8005d637568"
 uuid = "2e619515-83b5-522b-bb60-26c02a35a201"
-version = "2.6.5+0"
-
-[[deps.Extents]]
-git-tree-sha1 = "b309b36a9e02fe7be71270dd8c0fd873625332b4"
-uuid = "411431e0-e8b7-467b-b5e0-f676ba4f2910"
-version = "0.1.6"
+version = "2.8.4+0"
 
 [[deps.FFMPEG_jll]]
-deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "8cc47f299902e13f90405ddb5bf87e5d474c0d38"
+deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libva_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
+git-tree-sha1 = "7a58e45171b63ed4782f2d36fdee8713a469e6e0"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "6.1.2+0"
+version = "8.1.2+0"
 
-[[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "797762812ed063b9b94f6cc7742bc8883bb5e69e"
-uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.9.0"
-
-[[deps.FFTW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "6d6219a004b8cf1e0b4dbe27a2860b8e04eba0be"
-uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
-version = "3.3.11+0"
+[[deps.FFTA]]
+deps = ["AbstractFFTs", "DocStringExtensions", "LinearAlgebra", "MuladdMacro", "Primes", "Random", "Reexport"]
+git-tree-sha1 = "65e55303b72f4a567a51b174dd2c47496efeb95a"
+uuid = "b86e33f2-c0db-4aa1-a6e0-ab43e668529e"
+version = "0.3.1"
 
 [[deps.FileIO]]
 deps = ["Pkg", "Requires", "UUIDs"]
-git-tree-sha1 = "b66970a70db13f45b7e57fbda1736e1cf72174ea"
+git-tree-sha1 = "6621fef488e496356c9c9625d0562c12a6070819"
 uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
-version = "1.17.0"
+version = "1.20.0"
 
     [deps.FileIO.extensions]
     HTTPExt = "HTTP"
@@ -1683,10 +1726,20 @@ version = "1.17.0"
     HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 
 [[deps.FilePaths]]
-deps = ["FilePathsBase", "MacroTools", "Reexport", "Requires"]
-git-tree-sha1 = "919d9412dbf53a2e6fe74af62a73ceed0bce0629"
+deps = ["FilePathsBase", "MacroTools", "Reexport"]
+git-tree-sha1 = "a1b2fbfe98503f15b665ed45b3d149e5d8895e4c"
 uuid = "8fc22ac5-c921-52a6-82fd-178b2807b824"
-version = "0.8.3"
+version = "0.9.0"
+
+    [deps.FilePaths.extensions]
+    FilePathsGlobExt = "Glob"
+    FilePathsURIParserExt = "URIParser"
+    FilePathsURIsExt = "URIs"
+
+    [deps.FilePaths.weakdeps]
+    Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
+    URIParser = "30578b45-9adc-5946-b283-645ec420af67"
+    URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
 
 [[deps.FilePathsBase]]
 deps = ["Compat", "Dates"]
@@ -1705,21 +1758,22 @@ version = "1.11.0"
 
 [[deps.FillArrays]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "6a70198746448456524cb442b8af316927ff3e1a"
+git-tree-sha1 = "5bad39456d9f0166184fce2248783dd9862645c1"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "1.13.0"
-weakdeps = ["PDMats", "SparseArrays", "Statistics"]
+version = "1.17.0"
+weakdeps = ["PDMats", "SparseArrays", "StaticArrays", "Statistics"]
 
     [deps.FillArrays.extensions]
     FillArraysPDMatsExt = "PDMats"
     FillArraysSparseArraysExt = "SparseArrays"
+    FillArraysStaticArraysExt = "StaticArrays"
     FillArraysStatisticsExt = "Statistics"
 
 [[deps.FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Setfield"]
-git-tree-sha1 = "f089ab1f834470c525562030c8cfde4025d5e915"
+git-tree-sha1 = "5031f23e040bf17082e5b52422d77b5e844eefb1"
 uuid = "6a86dc24-6348-571c-b903-95158fe2bd41"
-version = "2.27.0"
+version = "2.33.0"
 
     [deps.FiniteDiff.extensions]
     FiniteDiffBandedMatricesExt = "BandedMatrices"
@@ -1734,31 +1788,21 @@ version = "2.27.0"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.FixedPointNumbers]]
-deps = ["Statistics"]
-git-tree-sha1 = "05882d6995ae5c12bb5f36dd2ed3f61c98cbb172"
+deps = ["Random", "Statistics"]
+git-tree-sha1 = "59af96b98217c6ef4ae0dfe065ac7c20831d1a84"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
-version = "0.8.5"
+version = "0.8.6"
 
 [[deps.Fontconfig_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Expat_jll", "FreeType2_jll", "JLLWrappers", "Libdl", "Libuuid_jll", "Zlib_jll"]
-git-tree-sha1 = "301b5d5d731a0654825f1f2e906990f7141a106b"
+git-tree-sha1 = "f85dac9a96a01087df6e3a749840015a0ca3817d"
 uuid = "a3f928ae-7b40-5064-980b-68af3947d34b"
-version = "2.16.0+0"
+version = "2.17.1+0"
 
 [[deps.Format]]
 git-tree-sha1 = "9c68794ef81b08086aeb32eeaf33531668d5f5fc"
 uuid = "1fa38f19-a742-5d3f-a2b9-30dd87b9d5f8"
 version = "1.3.7"
-
-[[deps.ForwardDiff]]
-deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions"]
-git-tree-sha1 = "a2df1b776752e3f344e5116c06d75a10436ab853"
-uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "0.10.38"
-weakdeps = ["StaticArrays"]
-
-    [deps.ForwardDiff.extensions]
-    ForwardDiffStaticArraysExt = "StaticArrays"
 
 [[deps.FreeType]]
 deps = ["CEnum", "FreeType2_jll"]
@@ -1768,9 +1812,9 @@ version = "4.1.1"
 
 [[deps.FreeType2_jll]]
 deps = ["Artifacts", "Bzip2_jll", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "2c5512e11c791d1baed2049c5652441b28fc6a31"
+git-tree-sha1 = "70329abc09b886fd2c5d94ad2d9527639c421e3e"
 uuid = "d7e528f0-a631-5988-bf34-fe36492bcfd7"
-version = "2.13.4+0"
+version = "2.14.3+1"
 
 [[deps.FreeTypeAbstraction]]
 deps = ["BaseDirs", "ColorVectorSpace", "Colors", "FreeType", "GeometryBasics", "Mmap"]
@@ -1789,28 +1833,33 @@ deps = ["Random"]
 uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 version = "1.11.0"
 
-[[deps.GeoFormatTypes]]
-git-tree-sha1 = "8e233d5167e63d708d41f87597433f59a0f213fe"
-uuid = "68eda718-8dee-11e9-39e7-89f7f65f511f"
-version = "0.4.4"
-
-[[deps.GeoInterface]]
-deps = ["DataAPI", "Extents", "GeoFormatTypes"]
-git-tree-sha1 = "294e99f19869d0b0cb71aef92f19d03649d028d5"
-uuid = "cf35fbd7-0cd7-5166-be24-54bfbe79505f"
-version = "1.4.1"
+[[deps.Gamma]]
+deps = ["LogExpFunctions"]
+git-tree-sha1 = "becc397f7cfb06e343496ae6ffb04818a851da51"
+uuid = "a0844989-3bd2-4988-8bea-c9407ab0941b"
+version = "1.2.0"
 
 [[deps.GeometryBasics]]
-deps = ["EarCut_jll", "Extents", "GeoInterface", "IterTools", "LinearAlgebra", "StaticArrays", "StructArrays", "Tables"]
-git-tree-sha1 = "b62f2b2d76cee0d61a2ef2b3118cd2a3215d3134"
+deps = ["EarCut_jll", "LinearAlgebra", "PrecompileTools", "Random", "StaticArrays"]
+git-tree-sha1 = "592cfb5ed8b02804f6a9c04091571c393081f73a"
 uuid = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
-version = "0.4.11"
+version = "0.5.12"
 
-[[deps.Gettext_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
-git-tree-sha1 = "9b02998aba7bf074d14de89f9d37ca24a1a0b046"
-uuid = "78b55507-aeef-58d4-861c-77aaff3498b1"
-version = "0.21.0+0"
+    [deps.GeometryBasics.extensions]
+    ExtentsExt = "Extents"
+    GeometryBasicsGeoInterfaceExt = "GeoInterface"
+    IntervalSetsExt = "IntervalSets"
+
+    [deps.GeometryBasics.weakdeps]
+    Extents = "411431e0-e8b7-467b-b5e0-f676ba4f2910"
+    GeoInterface = "cf35fbd7-0cd7-5166-be24-54bfbe79505f"
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+
+[[deps.GettextRuntime_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll"]
+git-tree-sha1 = "45288942190db7c5f760f59c04495064eedf9340"
+uuid = "b0724c58-0f36-5564-988d-3bb0596ebc4a"
+version = "0.22.4+0"
 
 [[deps.Giflib_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1819,10 +1868,10 @@ uuid = "59f7168a-df46-5410-90c8-f2779963d0ec"
 version = "5.2.3+0"
 
 [[deps.Glib_jll]]
-deps = ["Artifacts", "Gettext_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Libiconv_jll", "Libmount_jll", "PCRE2_jll", "Zlib_jll"]
-git-tree-sha1 = "fee60557e4f19d0fe5cd169211fdda80e494f4e8"
+deps = ["Artifacts", "GettextRuntime_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Libiconv_jll", "Libmount_jll", "PCRE2_jll", "Zlib_jll"]
+git-tree-sha1 = "090526e65de8f69648ac156daae153de8b56df62"
 uuid = "7746bdde-850d-59dc-9ae8-88ece973131d"
-version = "2.84.0+0"
+version = "2.88.3+0"
 
 [[deps.Graphics]]
 deps = ["Colors", "LinearAlgebra", "NaNMath"]
@@ -1832,32 +1881,27 @@ version = "1.1.3"
 
 [[deps.Graphite2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "8a6dbda1fd736d60cc477d99f2e7a042acfa46e8"
+git-tree-sha1 = "69ffb934a5c5b7e086a0b4fee3427db2556fba6e"
 uuid = "3b182d85-2403-5c21-9c21-1e1f0cc25472"
-version = "1.3.15+0"
+version = "1.3.16+0"
 
 [[deps.GridLayoutBase]]
 deps = ["GeometryBasics", "InteractiveUtils", "Observables"]
-git-tree-sha1 = "dc6bed05c15523624909b3953686c5f5ffa10adc"
+git-tree-sha1 = "ef70da5e123a06a29e2d6ddff0f09985bc226491"
 uuid = "3955a311-db13-416c-9275-1d80ed98e5e9"
-version = "0.11.1"
-
-[[deps.Grisu]]
-git-tree-sha1 = "53bb909d1151e57e2484c3d1b53e19552b887fb2"
-uuid = "42e2da0e-8278-4e71-bc24-59509adca0fe"
-version = "1.0.2"
+version = "0.11.3"
 
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll"]
-git-tree-sha1 = "f923f9a774fcf3f5cb761bfa43aeadd689714813"
+git-tree-sha1 = "9d9531a9cb63a9edc33836414e82a07e81710de2"
 uuid = "2e76f6c2-a576-52d4-95c1-20adfe4de566"
-version = "8.5.1+0"
+version = "100.14004.0+0"
 
 [[deps.HypergeometricFunctions]]
-deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
-git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
+deps = ["Gamma", "LinearAlgebra"]
+git-tree-sha1 = "31bb6c92405c084617facc1d7ed9eb6c402d061e"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
-version = "0.3.28"
+version = "0.3.30"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -1897,9 +1941,9 @@ version = "0.10.5"
 
 [[deps.ImageIO]]
 deps = ["FileIO", "IndirectArrays", "JpegTurbo", "LazyModules", "Netpbm", "OpenEXR", "PNGFiles", "QOI", "Sixel", "TiffImages", "UUIDs", "WebP"]
-git-tree-sha1 = "696144904b76e1ca433b886b4e7edd067d76cbf7"
+git-tree-sha1 = "f0f005f997dfb8c5fe23920d99458a9619873893"
 uuid = "82e4d734-157c-48bb-816b-45c225c6df19"
-version = "0.6.9"
+version = "0.6.10"
 
 [[deps.ImageMetadata]]
 deps = ["AxisArrays", "ImageAxes", "ImageBase", "ImageCore"]
@@ -1909,9 +1953,9 @@ version = "0.9.10"
 
 [[deps.Imath_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "0936ba688c6d201805a83da835b55c61a180db52"
+git-tree-sha1 = "dcc8d0cd653e55213df9b75ebc6fe4a8d3254c65"
 uuid = "905a6f67-0a94-5f89-b386-d35d92009cd1"
-version = "3.1.11+0"
+version = "3.2.2+0"
 
 [[deps.IndirectArrays]]
 git-tree-sha1 = "012e604e1c7458645cb8b436f8fba789a51b257f"
@@ -1924,9 +1968,9 @@ uuid = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
 version = "0.1.5"
 
 [[deps.InlineStrings]]
-git-tree-sha1 = "6a9fde685a7ac1eb3495f8e812c5a7c3711c2d5e"
+git-tree-sha1 = "06b65886c7577a3784d616e29f1302c2e36e389d"
 uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
-version = "1.4.3"
+version = "1.4.6"
 
     [deps.InlineStrings.extensions]
     ArrowTypesExt = "ArrowTypes"
@@ -1936,11 +1980,10 @@ version = "1.4.3"
     ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
     Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 
-[[deps.IntelOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "0f14a5456bdc6b9731a5682f439a672750a09e48"
-uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2025.0.4+0"
+[[deps.IntegerMathUtils]]
+git-tree-sha1 = "c72458f1962faeb003bf23cbdb75164fe6280906"
+uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
+version = "0.1.4"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -1949,40 +1992,46 @@ version = "1.11.0"
 
 [[deps.Interpolations]]
 deps = ["Adapt", "AxisAlgorithms", "ChainRulesCore", "LinearAlgebra", "OffsetArrays", "Random", "Ratios", "Requires", "SharedArrays", "SparseArrays", "StaticArrays", "WoodburyMatrices"]
-git-tree-sha1 = "88a101217d7cb38a7b481ccd50d21876e1d1b0e0"
+git-tree-sha1 = "c6c24bc9db44d9ad66af947398380233900e2bcd"
 uuid = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
-version = "0.15.1"
+version = "0.15.2"
 weakdeps = ["Unitful"]
 
     [deps.Interpolations.extensions]
     InterpolationsUnitfulExt = "Unitful"
 
 [[deps.IntervalArithmetic]]
-deps = ["CRlibm", "MacroTools", "OpenBLASConsistentFPCSR_jll", "Random", "RoundingEmulator"]
-git-tree-sha1 = "694c52705f8b23dc5b39eeac629dc3059a168a40"
+deps = ["CRlibm", "CoreMath", "MacroTools", "OpenBLASConsistentFPCSR_jll", "Printf", "Random", "RoundingEmulator"]
+git-tree-sha1 = "1c531bf0f8a5c60a340926e058fd3f209b5eef5d"
 uuid = "d1acc4aa-44c8-5952-acd4-ba5d80a2a253"
-version = "0.22.35"
+version = "1.0.12"
 
     [deps.IntervalArithmetic.extensions]
+    IntervalArithmeticArblibExt = "Arblib"
     IntervalArithmeticDiffRulesExt = "DiffRules"
     IntervalArithmeticForwardDiffExt = "ForwardDiff"
     IntervalArithmeticIntervalSetsExt = "IntervalSets"
+    IntervalArithmeticIrrationalConstantsExt = "IrrationalConstants"
     IntervalArithmeticLinearAlgebraExt = "LinearAlgebra"
+    IntervalArithmeticMakieExt = "Makie"
     IntervalArithmeticRecipesBaseExt = "RecipesBase"
     IntervalArithmeticSparseArraysExt = "SparseArrays"
 
     [deps.IntervalArithmetic.weakdeps]
+    Arblib = "fb37089c-8514-4489-9461-98f9c8763369"
     DiffRules = "b552c78f-8df3-52c6-915a-8e097449b14b"
     ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
     IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    IrrationalConstants = "92d709cd-6900-40b7-9082-c6be49f344b6"
     LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
     RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[deps.IntervalSets]]
-git-tree-sha1 = "5fbb102dcb8b1a858111ae81d56682376130517d"
+git-tree-sha1 = "79d6bd28c8d9bccc2229784f1bd637689b256377"
 uuid = "8197267c-284f-5f27-9208-e0e47529a953"
-version = "0.7.11"
+version = "0.7.14"
 
     [deps.IntervalSets.extensions]
     IntervalSetsRandomExt = "Random"
@@ -2010,9 +2059,9 @@ uuid = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
 version = "1.3.1"
 
 [[deps.IrrationalConstants]]
-git-tree-sha1 = "e2222959fbc6c19554dc15174c81bf7bf3aa691c"
+git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
-version = "0.2.4"
+version = "0.2.6"
 
 [[deps.Isoband]]
 deps = ["isoband_jll"]
@@ -2032,9 +2081,9 @@ version = "1.0.0"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "a007feb38b422fbdab534406aeca1b86823cb4d6"
+git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.7.0"
+version = "1.8.0"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -2050,49 +2099,43 @@ version = "0.1.6"
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "eac1206917768cb54957c65a615460d87b455fc1"
+git-tree-sha1 = "037babc10853eeb8e585418922246cb97b8e5b74"
 uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
-version = "3.1.1+0"
+version = "3.2.0+1"
+
+[[deps.JuliaSyntaxHighlighting]]
+deps = ["StyledStrings"]
+uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
+version = "1.12.0"
 
 [[deps.KernelDensity]]
-deps = ["Distributions", "DocStringExtensions", "FFTW", "Interpolations", "StatsBase"]
-git-tree-sha1 = "7d703202e65efa1369de1279c162b915e245eed1"
+deps = ["Distributions", "DocStringExtensions", "FFTA", "Interpolations", "StatsBase"]
+git-tree-sha1 = "9eda8292dd3268b3b7ec9df21bbfac24e177ec52"
 uuid = "5ab0869b-81aa-558d-bb23-cbf5423bbe9b"
-version = "0.6.9"
+version = "0.6.12"
 
 [[deps.LAME_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "170b660facf5df5de098d866564877e119141cbd"
+git-tree-sha1 = "059aabebaa7c82ccb853dd4a0ee9d17796f7e1bc"
 uuid = "c1c5ebd0-6772-5130-a774-d5fcae4a789d"
-version = "3.100.2+0"
+version = "3.100.3+0"
 
 [[deps.LERC_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "aaafe88dccbd957a8d82f7d05be9b69172e0cee3"
+git-tree-sha1 = "39bca05343661c347aae0bca57a5994a0bf4f08d"
 uuid = "88015f11-f218-50d7-93a8-a6af411a945d"
-version = "4.0.1+0"
+version = "4.2.0+0"
 
 [[deps.LLVMOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "eb62a3deb62fc6d8822c0c4bef73e4412419c5d8"
+git-tree-sha1 = "e5b100780d4d30d63b4618d7930d48af409c1772"
 uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
-version = "18.1.8+0"
-
-[[deps.LZO_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "1c602b1127f4751facb671441ca72715cc95938a"
-uuid = "dd4b983a-f0e5-5f8d-a1b7-129d4a5fb1ac"
-version = "2.10.3+0"
+version = "23.1.1+0"
 
 [[deps.LaTeXStrings]]
-git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
+git-tree-sha1 = "f88f3ccef05a6a72a0cf0ed417c8fd68530f4ab2"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
-version = "1.4.0"
-
-[[deps.LazyArtifacts]]
-deps = ["Artifacts", "Pkg"]
-uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
-version = "1.11.0"
+version = "1.4.1"
 
 [[deps.LazyModules]]
 git-tree-sha1 = "a560dd966b386ac9ae60bdd3a3d3a326062d3c3e"
@@ -2105,24 +2148,24 @@ uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 version = "0.6.4"
 
 [[deps.LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.6.0+0"
+version = "8.15.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
+deps = ["LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 version = "1.11.0"
 
 [[deps.LibGit2_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "OpenSSL_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.7.2+0"
+version = "1.9.0+0"
 
 [[deps.LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+deps = ["Artifacts", "Libdl", "OpenSSL_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.0+1"
+version = "1.11.3+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -2148,38 +2191,38 @@ version = "1.18.0+0"
 
 [[deps.Libmount_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "a31572773ac1b745e0343fe5e2c8ddda7a37e997"
+git-tree-sha1 = "cc3ad4faf30015a3e8094c9b5b7f19e85bdf2386"
 uuid = "4b2f31a3-9ecc-558c-b454-b3730dcb73e9"
-version = "2.41.0+0"
+version = "2.42.0+0"
 
 [[deps.Libtiff_jll]]
 deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "LERC_jll", "Libdl", "XZ_jll", "Zlib_jll", "Zstd_jll"]
-git-tree-sha1 = "4ab7581296671007fc33f07a721631b8855f4b1d"
+git-tree-sha1 = "aebd334d06cee9f24cea70bd19a39749daf73881"
 uuid = "89763e89-9b03-5906-acba-b20f662cd828"
-version = "4.7.1+0"
+version = "4.7.3+0"
 
 [[deps.Libuuid_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "321ccef73a96ba828cd51f2ab5b9f917fa73945a"
+git-tree-sha1 = "d620582b1f0cbe2c72dd1d5bd195a9ce73370ab1"
 uuid = "38a345b3-de98-5d2b-a5d3-14cd9215e700"
-version = "2.41.0+0"
+version = "2.42.0+0"
 
 [[deps.LineSearches]]
-deps = ["LinearAlgebra", "NLSolversBase", "NaNMath", "Parameters", "Printf"]
-git-tree-sha1 = "e4c3be53733db1051cc15ecf573b1042b3a712a1"
+deps = ["LinearAlgebra", "NLSolversBase", "NaNMath", "Printf"]
+git-tree-sha1 = "a09a85e94e681def2446752cddaf9401a4d82b6d"
 uuid = "d3d80556-e9d4-5f37-9878-2ab0fcc64255"
-version = "7.3.0"
+version = "7.8.2"
 
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "13ca9e2586b89836fd20cccf56e57e2b9ae7f38f"
+git-tree-sha1 = "bba2d9aa057d8f126415de240573e86a8f39d2a1"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "0.3.29"
+version = "1.0.1"
 
     [deps.LogExpFunctions.extensions]
     LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
@@ -2200,49 +2243,38 @@ git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "1.1.0"
 
-[[deps.MKL_jll]]
-deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
-git-tree-sha1 = "5de60bc6cb3899cd318d80d627560fae2e2d99ae"
-uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2025.0.1+1"
-
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.16"
 
 [[deps.Makie]]
-deps = ["Animations", "Base64", "CRC32c", "ColorBrewer", "ColorSchemes", "ColorTypes", "Colors", "Contour", "Dates", "DelaunayTriangulation", "Distributions", "DocStringExtensions", "Downloads", "FFMPEG_jll", "FileIO", "FilePaths", "FixedPointNumbers", "Format", "FreeType", "FreeTypeAbstraction", "GeometryBasics", "GridLayoutBase", "ImageBase", "ImageIO", "InteractiveUtils", "Interpolations", "IntervalSets", "InverseFunctions", "Isoband", "KernelDensity", "LaTeXStrings", "LinearAlgebra", "MacroTools", "MakieCore", "Markdown", "MathTeXEngine", "Observables", "OffsetArrays", "Packing", "PlotUtils", "PolygonOps", "PrecompileTools", "Printf", "REPL", "Random", "RelocatableFolders", "Scratch", "ShaderAbstractions", "Showoff", "SignedDistanceFields", "SparseArrays", "Statistics", "StatsBase", "StatsFuns", "StructArrays", "TriplotBase", "UnicodeFun", "Unitful"]
-git-tree-sha1 = "be3051d08b78206fb5e688e8d70c9e84d0264117"
+deps = ["Animations", "Base64", "CRC32c", "ColorBrewer", "ColorSchemes", "ColorTypes", "Colors", "ComputePipeline", "Contour", "Dates", "DelaunayTriangulation", "Distributions", "DocStringExtensions", "Downloads", "FFMPEG_jll", "FileIO", "FilePaths", "FixedPointNumbers", "Format", "FreeType", "FreeTypeAbstraction", "GeometryBasics", "GridLayoutBase", "ImageBase", "ImageIO", "InteractiveUtils", "Interpolations", "IntervalSets", "InverseFunctions", "Isoband", "KernelDensity", "LaTeXStrings", "LinearAlgebra", "MacroTools", "Markdown", "MathTeXEngine", "Observables", "OffsetArrays", "PNGFiles", "Packing", "Pkg", "PlotUtils", "PolygonOps", "PrecompileTools", "Printf", "REPL", "Random", "RelocatableFolders", "Scratch", "ShaderAbstractions", "SignedDistanceFields", "SparseArrays", "Statistics", "StatsBase", "StatsFuns", "StructArrays", "TriplotBase", "UnicodeFun", "Unitful"]
+git-tree-sha1 = "37b10d17f74f54dc5fa7d3c6c20fd75613c71d80"
 uuid = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-version = "0.21.18"
+version = "0.24.14"
 
-[[deps.MakieCore]]
-deps = ["ColorTypes", "GeometryBasics", "IntervalSets", "Observables"]
-git-tree-sha1 = "9019b391d7d086e841cbeadc13511224bd029ab3"
-uuid = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
-version = "0.8.12"
+    [deps.Makie.extensions]
+    MakieDynamicQuantitiesExt = "DynamicQuantities"
+
+    [deps.Makie.weakdeps]
+    DynamicQuantities = "06fc5a27-2a28-4c7c-a15d-362465fb6821"
 
 [[deps.MappedArrays]]
-git-tree-sha1 = "2dab0221fe2b0f2cb6754eaa743cc266339f527e"
+git-tree-sha1 = "0ee4497a4e80dbd29c058fcee6493f5219556f40"
 uuid = "dbb5928d-eab1-5f90-85c2-b9b0edb7c900"
-version = "0.4.2"
+version = "0.4.3"
 
 [[deps.Markdown]]
-deps = ["Base64"]
+deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
 [[deps.MathTeXEngine]]
 deps = ["AbstractTrees", "Automa", "DataStructures", "FreeTypeAbstraction", "GeometryBasics", "LaTeXStrings", "REPL", "RelocatableFolders", "UnicodeFun"]
-git-tree-sha1 = "31a99cb7537f812e1d6be893a71804c35979f1be"
+git-tree-sha1 = "aa1078778be5a8e5259ff04fbc3d258b3e78d464"
 uuid = "0a4f8689-d25c-4efe-a92b-7142dfc1aa53"
-version = "0.6.4"
-
-[[deps.MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.6+0"
+version = "0.6.9"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -2262,25 +2294,31 @@ version = "0.3.4"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.12.12"
+version = "2025.11.4"
+
+[[deps.MuladdMacro]]
+deps = ["PrecompileTools"]
+git-tree-sha1 = "283bf85d4a767481dd924dff0eee1735e95f449e"
+uuid = "46d2c3a1-f734-5fdb-9937-b9b9aeba4221"
+version = "0.2.7"
 
 [[deps.NLSolversBase]]
-deps = ["ADTypes", "DifferentiationInterface", "Distributed", "FiniteDiff", "ForwardDiff"]
-git-tree-sha1 = "25a6638571a902ecfb1ae2a18fc1575f86b1d4df"
+deps = ["ADTypes", "DifferentiationInterface", "FiniteDiff", "LinearAlgebra"]
+git-tree-sha1 = "f96d38936d92d610318dec4d3b5ef37b0373c20f"
 uuid = "d41bc354-129a-5804-8e4c-c37616107c6c"
-version = "7.10.0"
+version = "8.0.1"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
-git-tree-sha1 = "9b8215b1ee9e78a293f99797cd31375471b2bcae"
+git-tree-sha1 = "dbd2e8cd2c1c27f0b584f6661b4309609c5a685e"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-version = "1.1.3"
+version = "1.1.4"
 
 [[deps.NamedDims]]
-deps = ["LinearAlgebra", "Pkg", "Statistics"]
-git-tree-sha1 = "90178dc801073728b8b2d0d8677d10909feb94d8"
+deps = ["LinearAlgebra", "Statistics"]
+git-tree-sha1 = "f9e4a49ecd1ea2eccfb749a506fa882c094152b4"
 uuid = "356022a1-0364-5f58-8944-0da4b18d706f"
-version = "1.2.2"
+version = "1.2.3"
 
     [deps.NamedDims.extensions]
     AbstractFFTsExt = "AbstractFFTs"
@@ -2303,7 +2341,7 @@ version = "1.1.1"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-version = "1.2.0"
+version = "1.3.0"
 
 [[deps.Observables]]
 git-tree-sha1 = "7438a59546cf62428fc9d1bc94729146d37a7225"
@@ -2320,21 +2358,21 @@ weakdeps = ["Adapt"]
     OffsetArraysAdaptExt = "Adapt"
 
 [[deps.Ogg_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "887579a3eb005446d514ab7aeac5d1d027658b8f"
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "b6aa4566bb7ae78498a5e68943863fa8b5231b59"
 uuid = "e7412a2a-1a6e-54c0-be00-318e2571c051"
-version = "1.3.5+1"
+version = "1.3.6+0"
 
 [[deps.OpenBLASConsistentFPCSR_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "567515ca155d0020a45b05175449b499c63e7015"
+git-tree-sha1 = "38a93f17e431141c6470bb67a88952a7c4f0e928"
 uuid = "6cdc7f73-28fd-5e50-80fb-958a8875b1af"
-version = "0.3.29+0"
+version = "0.3.34+0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.27+1"
+version = "0.3.29+0"
 
 [[deps.OpenEXR]]
 deps = ["Colors", "FileIO", "OpenEXR_jll"]
@@ -2344,20 +2382,19 @@ version = "0.3.3"
 
 [[deps.OpenEXR_jll]]
 deps = ["Artifacts", "Imath_jll", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "8292dd5c8a38257111ada2174000a33745b06d4e"
+git-tree-sha1 = "1bcebd887dd33f1108210b3954049b1bb8af0e7a"
 uuid = "18a262bb-aa17-5467-a713-aee519bc75cb"
-version = "3.2.4+0"
+version = "3.4.15+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.5+0"
+version = "0.8.7+0"
 
 [[deps.OpenSSL_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "9216a80ff3682833ac4b733caa8c00390620ba5d"
+deps = ["Artifacts", "Libdl"]
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.5.0+0"
+version = "3.5.6+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
@@ -2366,10 +2403,10 @@ uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.6+0"
 
 [[deps.Optim]]
-deps = ["Compat", "FillArrays", "ForwardDiff", "LineSearches", "LinearAlgebra", "NLSolversBase", "NaNMath", "Parameters", "PositiveFactorizations", "Printf", "SparseArrays", "StatsBase"]
-git-tree-sha1 = "d9b79c4eed437421ac4285148fcadf42e0700e89"
+deps = ["ADTypes", "EnumX", "FillArrays", "LineSearches", "LinearAlgebra", "NLSolversBase", "NaNMath", "PositiveFactorizations", "Printf", "SparseArrays", "Statistics"]
+git-tree-sha1 = "81f338ad984b25bc82471db4d235e7b8bf21b8d6"
 uuid = "429524aa-4258-5aef-a3af-852621145aeb"
-version = "1.9.4"
+version = "2.3.2"
 
     [deps.Optim.extensions]
     OptimMOIExt = "MathOptInterface"
@@ -2379,31 +2416,35 @@ version = "1.9.4"
 
 [[deps.Opus_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "6703a85cb3781bd5909d48730a67205f3f31a575"
+git-tree-sha1 = "e2bb57a313a74b8104064b7efd01406c0a50d2ff"
 uuid = "91d4177d-7536-5919-b921-800302f37372"
-version = "1.3.3+0"
+version = "1.6.1+0"
 
 [[deps.OrderedCollections]]
-git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
+git-tree-sha1 = "05f45c2e0de6259db764adbfd2f1dc6d3f8de13c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.8.1"
+version = "2.0.1"
 
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.42.0+1"
+version = "10.44.0+1"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "f07c06228a1c670ae4c87d1276b92c7c597fdda0"
+git-tree-sha1 = "123266c25174ef6c8d4718920abc206452cf8de6"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
-version = "0.11.35"
+version = "0.11.41"
+weakdeps = ["StatsBase"]
+
+    [deps.PDMats.extensions]
+    StatsBaseExt = "StatsBase"
 
 [[deps.PNGFiles]]
 deps = ["Base64", "CEnum", "ImageCore", "IndirectArrays", "OffsetArrays", "libpng_jll"]
-git-tree-sha1 = "cf181f0b1e6a18dfeb0ee8acc4a9d1672499626c"
+git-tree-sha1 = "32b657a0d57c310a1a172bfc8c8cf68c5e674323"
 uuid = "f57f5aa1-a3ce-4bc8-8ab9-96f992907883"
-version = "0.4.4"
+version = "0.4.5"
 
 [[deps.Packing]]
 deps = ["GeometryBasics"]
@@ -2419,32 +2460,26 @@ version = "0.5.12"
 
 [[deps.Pango_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "FriBidi_jll", "Glib_jll", "HarfBuzz_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "275a9a6d85dc86c24d03d1837a0010226a96f540"
+git-tree-sha1 = "1912a9f1b9ca55005b03ba075f8e19993583e237"
 uuid = "36c8627f-9965-5494-a995-c6b170f724f3"
-version = "1.56.3+0"
-
-[[deps.Parameters]]
-deps = ["OrderedCollections", "UnPack"]
-git-tree-sha1 = "34c0e9ad262e5f7fc75b10a9952ca7692cfc5fbe"
-uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-version = "0.12.3"
+version = "1.58.2+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
+git-tree-sha1 = "ba0dc8a8a67cacac4842631f960c046e4e563675"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.3"
+version = "2.8.8"
 
 [[deps.Pixman_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LLVMOpenMP_jll", "Libdl"]
-git-tree-sha1 = "db76b1ecd5e9715f3d043cec13b2ec93ce015d53"
+git-tree-sha1 = "e4a6721aa89e62e5d4217c0b21bd714263779dda"
 uuid = "30392449-352a-5448-841d-b1acce4e97dc"
-version = "0.44.2+0"
+version = "0.46.4+0"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.11.0"
+version = "1.12.1"
 weakdeps = ["REPL"]
 
     [deps.Pkg.extensions]
@@ -2458,9 +2493,9 @@ version = "0.3.3"
 
 [[deps.PlotUtils]]
 deps = ["ColorSchemes", "Colors", "Dates", "PrecompileTools", "Printf", "Random", "Reexport", "StableRNGs", "Statistics"]
-git-tree-sha1 = "3ca9a356cd2e113c420f2c13bea19f8d3fb1cb18"
+git-tree-sha1 = "26ca162858917496748aad52bb5d3be4d26a228a"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
-version = "1.4.3"
+version = "1.4.4"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -2487,21 +2522,35 @@ version = "0.2.4"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
-git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
+git-tree-sha1 = "edbeefc7a4889f528644251bdb5fc9ab5348bc2c"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.2.1"
+version = "1.3.4"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "9306f6085165d270f7e3db02af26a400d580f5c6"
+git-tree-sha1 = "5005266de4bfe50e53ff44a5cb5c540b6e47a254"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.3"
+version = "1.6.0"
 
 [[deps.PrettyTables]]
-deps = ["Crayons", "LaTeXStrings", "Markdown", "PrecompileTools", "Printf", "Reexport", "StringManipulation", "Tables"]
-git-tree-sha1 = "1101cd475833706e4d0e7b122218257178f48f34"
+deps = ["Crayons", "LaTeXStrings", "Markdown", "PrecompileTools", "Printf", "REPL", "Reexport", "StringManipulation", "Tables"]
+git-tree-sha1 = "1b8aa19f229b1cea7fc93874a52e49db6a854450"
 uuid = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
-version = "2.4.0"
+version = "3.4.8"
+
+    [deps.PrettyTables.extensions]
+    PrettyTablesExcelExt = "XLSX"
+    PrettyTablesTypstryExt = "Typstry"
+
+    [deps.PrettyTables.weakdeps]
+    Typstry = "f0ed7684-a786-439e-b1e3-3b82803b501e"
+    XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
+
+[[deps.Primes]]
+deps = ["IntegerMathUtils"]
+git-tree-sha1 = "25cdd1d20cd005b52fc12cb6be3f75faaf59bb9b"
+uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
+version = "0.5.7"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -2510,26 +2559,26 @@ version = "1.11.0"
 
 [[deps.ProgressMeter]]
 deps = ["Distributed", "Printf"]
-git-tree-sha1 = "13c5103482a8ed1536a54c08d0e742ae3dca2d42"
+git-tree-sha1 = "fbb92c6c56b34e1a2c4c36058f68f332bec840e7"
 uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
-version = "1.10.4"
+version = "1.11.0"
 
 [[deps.PtrArrays]]
-git-tree-sha1 = "1d36ef11a9aaf1e8b74dacc6a731dd1de8fd493d"
+git-tree-sha1 = "4fbbafbc6251b883f4d2705356f3641f3652a7fe"
 uuid = "43287f4e-b6f4-7ad1-bb20-aadabca52c3d"
-version = "1.3.0"
+version = "1.4.0"
 
 [[deps.QOI]]
 deps = ["ColorTypes", "FileIO", "FixedPointNumbers"]
-git-tree-sha1 = "8b3fc30bc0390abdce15f8822c889f669baed73d"
+git-tree-sha1 = "472daaa816895cb7aee81658d4e7aec901fa1106"
 uuid = "4b34888f-f399-49d4-9bb3-47ed5cae4e65"
-version = "1.0.1"
+version = "1.0.2"
 
 [[deps.QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
-git-tree-sha1 = "9da16da70037ba9d701192e27befedefb91ec284"
+git-tree-sha1 = "5e8e8b0ab68215d7a2b14b9921a946fee794749e"
 uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
-version = "2.11.2"
+version = "2.11.3"
 
     [deps.QuadGK.extensions]
     QuadGKEnzymeExt = "Enzyme"
@@ -2538,7 +2587,7 @@ version = "2.11.2"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 
 [[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "StyledStrings", "Unicode"]
+deps = ["InteractiveUtils", "JuliaSyntaxHighlighting", "Markdown", "Sockets", "StyledStrings", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 version = "1.11.0"
 
@@ -2581,15 +2630,37 @@ version = "1.3.1"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]
-git-tree-sha1 = "852bd0f55565a9e973fcfee83a84413270224dc4"
+git-tree-sha1 = "5b3d50eb374cea306873b371d3f8d3915a018f0b"
 uuid = "79098fc4-a85e-5d69-aa6a-4863f24498fa"
-version = "0.8.0"
+version = "0.9.0"
 
 [[deps.Rmath_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "58cdd8fb2201a6267e1db87ff148dd6c1dbd8ad8"
+git-tree-sha1 = "6d40b2fe70437b01397d2a4d5b020008da4e7019"
 uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
-version = "0.5.1+0"
+version = "0.5.2+0"
+
+[[deps.Roots]]
+deps = ["Accessors", "CommonSolve", "Printf"]
+git-tree-sha1 = "4db094d5e079abbda658acfe1c4d098430417717"
+uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+version = "3.0.8"
+
+    [deps.Roots.extensions]
+    RootsChainRulesCoreExt = "ChainRulesCore"
+    RootsForwardDiffExt = "ForwardDiff"
+    RootsIntervalRootFindingExt = "IntervalRootFinding"
+    RootsSymPyExt = "SymPy"
+    RootsSymPyPythonCallExt = "SymPyPythonCall"
+    RootsUnitfulExt = "Unitful"
+
+    [deps.Roots.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+    IntervalRootFinding = "d2bf35a9-74e0-55ec-b149-d360ff49b807"
+    SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
+    SymPyPythonCall = "bc8888f7-b21e-4b7c-a06a-5d9c9496438c"
+    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.RoundingEmulator]]
 git-tree-sha1 = "40b9edad2e5287e05bd413a38f61a8ff55b9557b"
@@ -2602,21 +2673,21 @@ version = "0.7.0"
 
 [[deps.SIMD]]
 deps = ["PrecompileTools"]
-git-tree-sha1 = "fea870727142270bdf7624ad675901a1ee3b4c87"
+git-tree-sha1 = "e24dc23107d426a096d3eae6c165b921e74c18e4"
 uuid = "fdea26ae-647d-5447-a871-4b548cad5224"
-version = "3.7.1"
+version = "3.7.2"
 
 [[deps.Scratch]]
 deps = ["Dates"]
-git-tree-sha1 = "3bac05bc7e74a75fd9cba4295cde4045d9fe2386"
+git-tree-sha1 = "9b81b8393e50b7d4e6d0a9f14e192294d3b7c109"
 uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.2.1"
+version = "1.3.0"
 
 [[deps.SentinelArrays]]
 deps = ["Dates", "Random"]
-git-tree-sha1 = "712fb0231ee6f9120e005ccd56297abbc053e7e0"
+git-tree-sha1 = "084c47c7c5ce5cfecefa0a98dff69eb3646b5a80"
 uuid = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
-version = "1.4.8"
+version = "1.4.10"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -2629,39 +2700,33 @@ uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 version = "1.1.2"
 
 [[deps.ShaderAbstractions]]
-deps = ["ColorTypes", "FixedPointNumbers", "GeometryBasics", "LinearAlgebra", "Observables", "StaticArrays", "StructArrays", "Tables"]
-git-tree-sha1 = "79123bc60c5507f035e6d1d9e563bb2971954ec8"
+deps = ["ColorTypes", "FixedPointNumbers", "GeometryBasics", "LinearAlgebra", "Observables", "StaticArrays"]
+git-tree-sha1 = "818554664a2e01fc3784becb2eb3a82326a604b6"
 uuid = "65257c39-d410-5151-9873-9b3e5be5013e"
-version = "0.4.1"
+version = "0.5.0"
 
 [[deps.SharedArrays]]
 deps = ["Distributed", "Mmap", "Random", "Serialization"]
 uuid = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
 version = "1.11.0"
 
-[[deps.Showoff]]
-deps = ["Dates", "Grisu"]
-git-tree-sha1 = "91eddf657aca81df9ae6ceb20b959ae5653ad1de"
-uuid = "992d4aef-0814-514b-bc4d-f2e9a6c4116f"
-version = "1.0.3"
-
 [[deps.SignedDistanceFields]]
-deps = ["Random", "Statistics", "Test"]
-git-tree-sha1 = "d263a08ec505853a5ff1c1ebde2070419e3f28e9"
+deps = ["Statistics"]
+git-tree-sha1 = "3949ad92e1c9d2ff0cd4a1317d5ecbba682f4b92"
 uuid = "73760f76-fbc4-59ce-8f25-708e95d2df96"
-version = "0.4.0"
+version = "0.4.1"
 
 [[deps.SimpleTraits]]
 deps = ["InteractiveUtils", "MacroTools"]
-git-tree-sha1 = "5d7e3f4e11935503d3ecaf7186eac40602e7d231"
+git-tree-sha1 = "7ddb0b49c109481b046972c0e4ab02b2127d6a75"
 uuid = "699a6c99-e7fa-54fc-8d76-47d257e15c1d"
-version = "0.9.4"
+version = "0.9.6"
 
 [[deps.Sixel]]
 deps = ["Dates", "FileIO", "ImageCore", "IndirectArrays", "OffsetArrays", "REPL", "libsixel_jll"]
-git-tree-sha1 = "2da10356e31327c7096832eb9cd86307a50b1eb6"
+git-tree-sha1 = "0494aed9501e7fb65daba895fb7fd57cc38bc743"
 uuid = "45858cf5-a6b0-47a3-bbea-62219f50df47"
-version = "0.1.3"
+version = "0.1.5"
 
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
@@ -2669,20 +2734,20 @@ version = "1.11.0"
 
 [[deps.SortingAlgorithms]]
 deps = ["DataStructures"]
-git-tree-sha1 = "66e0a8e672a0bdfca2c3f5937efb8538b9ddc085"
+git-tree-sha1 = "13cd91cc9be159e3f4d95b857fa2aa383b53772a"
 uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
-version = "1.2.1"
+version = "1.2.3"
 
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.11.0"
+version = "1.12.0"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "41852b8679f78c8d8961eeadc8f62cef861a52e3"
+git-tree-sha1 = "429071b23f4c9a13fb6582f807cc2ef454082408"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "2.5.1"
+version = "2.9.0"
 weakdeps = ["ChainRulesCore"]
 
     [deps.SpecialFunctions.extensions]
@@ -2690,9 +2755,9 @@ weakdeps = ["ChainRulesCore"]
 
 [[deps.StableRNGs]]
 deps = ["Random"]
-git-tree-sha1 = "95af145932c2ed859b63329952ce8d633719f091"
+git-tree-sha1 = "4f96c596b8c8258cc7d3b19797854d368f243ddc"
 uuid = "860ef19b-820b-49d6-a774-d7a799459cd3"
-version = "1.0.3"
+version = "1.0.4"
 
 [[deps.StackViews]]
 deps = ["OffsetArrays"]
@@ -2702,9 +2767,9 @@ version = "0.1.2"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "0feb6b9031bd5c51f9072393eb5ab3efd31bf9e4"
+git-tree-sha1 = "e206cf4850fd7ac4255ffd2b98922f563e18ac53"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.9.13"
+version = "1.9.20"
 weakdeps = ["ChainRulesCore", "Statistics"]
 
     [deps.StaticArrays.extensions]
@@ -2712,15 +2777,15 @@ weakdeps = ["ChainRulesCore", "Statistics"]
     StaticArraysStatisticsExt = "Statistics"
 
 [[deps.StaticArraysCore]]
-git-tree-sha1 = "192954ef1208c7019899fbf8049e717f92959682"
+git-tree-sha1 = "6ab403037779dae8c514bad259f32a447262455a"
 uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-version = "1.4.3"
+version = "1.4.4"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "ae3bb1eb3bba077cd276bc5cfc337cc65c3075c0"
+git-tree-sha1 = "e2b53ce13a53367e96601081e33d34746b571bad"
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-version = "1.11.1"
+version = "1.11.5"
 weakdeps = ["SparseArrays"]
 
     [deps.Statistics.extensions]
@@ -2728,21 +2793,21 @@ weakdeps = ["SparseArrays"]
 
 [[deps.StatsAPI]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "9d72a13a3f4dd3795a195ac5a44d7d6ff5f552ff"
+git-tree-sha1 = "178ed29fd5b2a2cfc3bd31c13375ae925623ff36"
 uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
-version = "1.7.1"
+version = "1.8.0"
 
 [[deps.StatsBase]]
-deps = ["AliasTables", "DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "b81c5035922cc89c2d9523afc6c54be512411466"
+deps = ["AliasTables", "DataAPI", "DataStructures", "IrrationalConstants", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
+git-tree-sha1 = "adb9da019510162e67a4493fc235c23203d8b09e"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.34.5"
+version = "0.34.13"
 
 [[deps.StatsFuns]]
 deps = ["HypergeometricFunctions", "IrrationalConstants", "LogExpFunctions", "Reexport", "Rmath", "SpecialFunctions"]
-git-tree-sha1 = "8e45cecc66f3b42633b8ce14d431e8e57a3e242e"
+git-tree-sha1 = "91a5737baed20ee31f3faea0e51f57461f6a689e"
 uuid = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
-version = "1.5.0"
+version = "2.2.1"
 weakdeps = ["ChainRulesCore", "InverseFunctions"]
 
     [deps.StatsFuns.extensions]
@@ -2751,15 +2816,15 @@ weakdeps = ["ChainRulesCore", "InverseFunctions"]
 
 [[deps.StringManipulation]]
 deps = ["PrecompileTools"]
-git-tree-sha1 = "725421ae8e530ec29bcbdddbe91ff8053421d023"
+git-tree-sha1 = "773065c6e0e903924a9d838259be74338422aef2"
 uuid = "892a3eda-7b42-436c-8928-eab12a02cf0e"
-version = "0.4.1"
+version = "0.5.0"
 
 [[deps.StructArrays]]
 deps = ["ConstructionBase", "DataAPI", "Tables"]
-git-tree-sha1 = "9537ef82c42cdd8c5d443cbc359110cbb36bae10"
+git-tree-sha1 = "ad8002667372439f2e3611cfd14097e03fa4bccd"
 uuid = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-version = "0.6.21"
+version = "0.7.3"
 
     [deps.StructArrays.extensions]
     StructArraysAdaptExt = "Adapt"
@@ -2787,7 +2852,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.7.0+0"
+version = "7.8.3+2"
 
 [[deps.TOML]]
 deps = ["Dates"]
@@ -2802,9 +2867,9 @@ version = "1.0.1"
 
 [[deps.Tables]]
 deps = ["DataAPI", "DataValueInterfaces", "IteratorInterfaceExtensions", "OrderedCollections", "TableTraits"]
-git-tree-sha1 = "f2c1efbc8f3a609aadf318094f8fc5204bdaf344"
+git-tree-sha1 = "a94d9bdda1b7bed0046cea645639ab3f62196fac"
 uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-version = "1.12.1"
+version = "1.14.0"
 
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
@@ -2823,10 +2888,10 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 version = "1.11.0"
 
 [[deps.TiffImages]]
-deps = ["ColorTypes", "DataStructures", "DocStringExtensions", "FileIO", "FixedPointNumbers", "IndirectArrays", "Inflate", "Mmap", "OffsetArrays", "PkgVersion", "PrecompileTools", "ProgressMeter", "SIMD", "UUIDs"]
-git-tree-sha1 = "02aca429c9885d1109e58f400c333521c13d48a0"
+deps = ["CodecZstd", "ColorTypes", "DataStructures", "DocStringExtensions", "FileIO", "FixedPointNumbers", "IndirectArrays", "Inflate", "Mmap", "OffsetArrays", "PkgVersion", "PrecompileTools", "ProgressMeter", "SIMD", "UUIDs"]
+git-tree-sha1 = "9ca5f1f2d42f80df4b8c9f6ab5a64f438bbd9976"
 uuid = "731e570b-9d59-4bfa-96dc-6df516fadf69"
-version = "0.11.4"
+version = "0.11.9"
 
 [[deps.TranscodingStreams]]
 git-tree-sha1 = "0c45878dcfdcfa8480052b6ab162cdd138781742"
@@ -2834,9 +2899,9 @@ uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 version = "0.11.3"
 
 [[deps.Tricks]]
-git-tree-sha1 = "6cae795a5a9313bbb4f60683f7263318fc7d1505"
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.10"
+version = "0.1.13"
 
 [[deps.TriplotBase]]
 git-tree-sha1 = "4d4ed7f294cda19382ff7de4c137d24d16adc89b"
@@ -2844,19 +2909,14 @@ uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
 version = "0.1.0"
 
 [[deps.URIs]]
-git-tree-sha1 = "cbbebadbcc76c5ca1cc4b4f3b0614b3e603b5000"
+git-tree-sha1 = "908fec9df6c5de98548ead82a468c95ccf6cd263"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.5.2"
+version = "1.7.0"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 version = "1.11.0"
-
-[[deps.UnPack]]
-git-tree-sha1 = "387c1f73762231e86e0c9c5443ce3b4a0a9a0c2b"
-uuid = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
-version = "1.0.2"
 
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
@@ -2870,16 +2930,26 @@ version = "0.4.1"
 
 [[deps.Unitful]]
 deps = ["Dates", "LinearAlgebra", "Random"]
-git-tree-sha1 = "d2282232f8a4d71f79e85dc4dd45e5b12a6297fb"
+git-tree-sha1 = "1f0f9f401753701a7e4113b5056ca38d33875b55"
 uuid = "1986cc42-f94f-5a68-af5c-568840ba703d"
-version = "1.23.1"
-weakdeps = ["ConstructionBase", "ForwardDiff", "InverseFunctions", "Printf"]
+version = "1.29.0"
 
     [deps.Unitful.extensions]
     ConstructionBaseUnitfulExt = "ConstructionBase"
     ForwardDiffExt = "ForwardDiff"
     InverseFunctionsUnitfulExt = "InverseFunctions"
+    LatexifyExt = ["Latexify", "LaTeXStrings"]
+    NaNMathExt = "NaNMath"
     PrintfExt = "Printf"
+
+    [deps.Unitful.weakdeps]
+    ConstructionBase = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
+    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
+    LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+    Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
+    NaNMath = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
+    Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [[deps.WebP]]
 deps = ["CEnum", "ColorTypes", "FileIO", "FixedPointNumbers", "ImageCore", "libwebp_jll"]
@@ -2889,27 +2959,21 @@ version = "0.1.3"
 
 [[deps.WoodburyMatrices]]
 deps = ["LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "c1a7aa6219628fcd757dede0ca95e245c5cd9511"
+git-tree-sha1 = "248a7031b3da79a127f14e5dc5f417e26f9f6db7"
 uuid = "efce3f68-66dc-5838-9240-27a6d6f5f9b6"
-version = "1.0.0"
-
-[[deps.XML2_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Zlib_jll"]
-git-tree-sha1 = "b8b243e47228b4a3877f1dd6aee0c5d56db7fcf4"
-uuid = "02c8fc9c-b97f-50b9-bbe4-9be30ff0a78a"
-version = "2.13.6+1"
+version = "1.1.0"
 
 [[deps.XZ_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "fee71455b0aaa3440dfdd54a9a36ccef829be7d4"
+git-tree-sha1 = "e52eca002a11c30a858185efdfb15311e1c7a6bf"
 uuid = "ffd25f8a-64ca-5728-b0f7-c24cf3aae800"
-version = "5.8.1+0"
+version = "5.8.4+0"
 
 [[deps.Xorg_libX11_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libxcb_jll", "Xorg_xtrans_jll"]
-git-tree-sha1 = "b5899b25d17bf1889d25906fb9deed5da0c15b3b"
+git-tree-sha1 = "808090ede1d41644447dd5cbafced4731c56bd2f"
 uuid = "4f6342f7-b3d2-589e-9d20-edeb45f2b2bc"
-version = "1.8.12+0"
+version = "1.8.13+0"
 
 [[deps.Xorg_libXau_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2925,15 +2989,27 @@ version = "1.1.6+0"
 
 [[deps.Xorg_libXext_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
-git-tree-sha1 = "a4c0ee07ad36bf8bbce1c3bb52d21fb1e0b987fb"
+git-tree-sha1 = "1a4a26870bf1e5d26cd585e38038d399d7e65706"
 uuid = "1082639a-0dae-5f34-9b06-72781eeb8cb3"
-version = "1.3.7+0"
+version = "1.3.8+0"
+
+[[deps.Xorg_libXfixes_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
+git-tree-sha1 = "75e00946e43621e09d431d9b95818ee751e6b2ef"
+uuid = "d091e8ba-531a-589c-9de9-94069b037ed8"
+version = "6.0.2+0"
 
 [[deps.Xorg_libXrender_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll"]
 git-tree-sha1 = "7ed9347888fac59a618302ee38216dd0379c480d"
 uuid = "ea2f1a96-1ddc-540d-b46f-429655e07cfa"
 version = "0.9.12+0"
+
+[[deps.Xorg_libpciaccess_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
+git-tree-sha1 = "58972370b81423fc546c56a60ed1a009450177c3"
+uuid = "a65dc6b1-eb27-53a1-bb3e-dea574b5389e"
+version = "0.19.0+0"
 
 [[deps.Xorg_libxcb_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libXau_jll", "Xorg_libXdmcp_jll"]
@@ -2950,7 +3026,7 @@ version = "1.6.0+0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+1"
+version = "1.3.1+2"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2966,32 +3042,38 @@ version = "0.2.3+0"
 
 [[deps.libaom_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "522c1df09d05a71785765d19c9524661234738e9"
+git-tree-sha1 = "ef17c47d22224aaecc76e597ab21a072e025cf7b"
 uuid = "a4ae2306-e953-59d6-aa16-d00cac43593b"
-version = "3.11.0+0"
+version = "3.14.1+0"
 
 [[deps.libass_jll]]
 deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "HarfBuzz_jll", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "e17c115d55c5fbb7e52ebedb427a0dca79d4484e"
+git-tree-sha1 = "cb007192783c56d8249db4cf0e3495001edfe414"
 uuid = "0ac62f75-1d6f-5e53-bd7c-93b484bb37c0"
-version = "0.15.2+0"
+version = "0.17.5+0"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.11.0+0"
+version = "5.15.0+0"
+
+[[deps.libdrm_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libpciaccess_jll"]
+git-tree-sha1 = "28e57478e8a160d346a19c28b3fffb9273bcc9c2"
+uuid = "8e53e030-5e6c-5a89-a30b-be5b7263a166"
+version = "2.4.134+0"
 
 [[deps.libfdk_aac_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "8a22cf860a7d27e4f3498a0fe0811a7957badb38"
+git-tree-sha1 = "646634dd19587a56ee2f1199563ec056c5f228df"
 uuid = "f638f0a6-7fb0-5443-88ba-1cc74229b280"
-version = "2.0.3+0"
+version = "2.0.4+0"
 
 [[deps.libpng_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "002748401f7b520273e2b506f61cab95d4701ccf"
+git-tree-sha1 = "e51150d5ab85cee6fc36726850f0e627ad2e4aba"
 uuid = "b53b4c65-9356-5827-b1ea-8c7a1a84506f"
-version = "1.6.48+0"
+version = "1.6.58+0"
 
 [[deps.libsixel_jll]]
 deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "libpng_jll"]
@@ -2999,33 +3081,33 @@ git-tree-sha1 = "c1733e347283df07689d71d61e14be986e49e47a"
 uuid = "075b6546-f08a-558a-be8f-8157d0f608a5"
 version = "1.10.5+0"
 
+[[deps.libva_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll", "Xorg_libXext_jll", "Xorg_libXfixes_jll", "libdrm_jll"]
+git-tree-sha1 = "7dbf96baae3310fe2fa0df0ccbb3c6288d5816c9"
+uuid = "9a156e7d-b971-5f62-b2c9-67348b8fb97c"
+version = "2.23.0+0"
+
 [[deps.libvorbis_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Ogg_jll", "Pkg"]
-git-tree-sha1 = "490376214c4721cdaca654041f635213c6165cb3"
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Ogg_jll"]
+git-tree-sha1 = "11e1772e7f3cc987e9d3de991dd4f6b2602663a5"
 uuid = "f27f6e37-5d2b-51aa-960f-b287f2bc3b7a"
-version = "1.3.7+2"
+version = "1.3.8+0"
 
 [[deps.libwebp_jll]]
 deps = ["Artifacts", "Giflib_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libglvnd_jll", "Libtiff_jll", "libpng_jll"]
-git-tree-sha1 = "d2408cac540942921e7bd77272c32e58c33d8a77"
+git-tree-sha1 = "4e4282c4d846e11dce56d74fa8040130b7a95cb3"
 uuid = "c5f90fcd-3b7e-5836-afba-fc50a0988cb2"
-version = "1.5.0+0"
+version = "1.6.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.59.0+0"
-
-[[deps.oneTBB_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "d5a767a3bb77135a99e433afe0eb14cd7f6914c3"
-uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
-version = "2022.0.0+0"
+version = "1.64.0+1"
 
 [[deps.p7zip_jll]]
-deps = ["Artifacts", "Libdl"]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+2"
+version = "17.7.0+0"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -3035,9 +3117,9 @@ version = "10164.0.1+0"
 
 [[deps.x265_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "dcc541bb19ed5b0ede95581fb2e41ecf179527d2"
+git-tree-sha1 = "e7b67590c14d487e734dcb925924c5dc43ec85f3"
 uuid = "dfaa095f-4041-5dcd-9319-2fabd8486b76"
-version = "3.6.0+0"
+version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:

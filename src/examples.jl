@@ -1,22 +1,11 @@
-pushfirst!(LOAD_PATH, ".")
+# make sure packages needed for the *examples* are installed
+using Pkg
+Pkg.add.(split("Optim Statistics StatsBase BenchmarkTools CairoMakie LogExpFunctions DataFrames AxisKeys LinearAlgebra NLSolversBase"));
 
-#-----
-# version 2 model
-#-----
+Pkg.add(url="https://github.com/droodman/SpendDown.jl")
 
-using SpendDown, Random, Optim, Statistics, StatsBase, BenchmarkTools, CairoMakie, LogExpFunctions, DataFrames, AxisKeys, LinearAlgebra
+using SpendDown, Random, Optim, Statistics, StatsBase, BenchmarkTools, CairoMakie, LogExpFunctions, DataFrames, AxisKeys, LinearAlgebra, NLSolversBase
 
-f = Figure(size=(1000,1000))
-a1 = Axis(f[3,1], ylabel="spending (billion \$)", xticks=0:10:50, xminorgridvisible=true, xminorticks=(IntervalsBetween(10)),
-                  yminorgridvisible=true, yminorticks=(IntervalsBetween(10)),
-                  limits=((0.1,50),nothing))
-a2 = Axis(f[2,1], ylabel="assets (billion \$)", yticks=0:10:80, yminorgridvisible=true, yminorticks=(IntervalsBetween(10)),
-                  xticks=0:10:50, xminorgridvisible=true, xminorticks=(IntervalsBetween(10)),
-                  limits=((0,50),nothing))
-a3 = Axis(f[1,1], ylabel="spending %", xticks=0:10:50, xminorgridvisible=true, xminorticks=(IntervalsBetween(10)),
-                    yticks=(0:.1:1,string.(0:10:100).*"%"), yminorgridvisible=true, yminorticks=(IntervalsBetween(10)),
-                    limits=((0.01,50),(0,1)), title="Optimal spending rate path by median asset return rate")
-@time begin
 df = DataFrame(rate=[], EV=[])
 
 S = Float32  # numerical data type to work in 
@@ -79,22 +68,22 @@ for s ∈ .25:.1:1.25
         ẋ        = 300,                                      # reference level of GW giving
         ḅ        = 300,                                      # CE at that level
         calibrate_b₁ = false,
-        η        = TwoPieceUniform([.25,.5,.99]),        # "inverse elasticity of intertemporal substitution"--0=linear utility, 1=log utility
+        η        = TwoPieceUniform([.25,.5,.99]),            # "inverse elasticity of intertemporal substitution"--0=linear utility, 1=log utility
         simr     = true,                                     # simulate using S&P 500 history
-        r        = s * TwoPieceUniform([.11, .061, .035]),# rate of return on assets
+        r        = s * TwoPieceUniform([.11, .061, .035]),   # rate of return on assets
         r_geo    = false,                                    # interpret r as geometric mean (true) vs arithmetic mean (false)
         r_sd     = 2,                                        # standard deviation of return on assets (ignored if simr=false)
         ∂CE      = TwoPieceUniform([.025,.0475,.0725]),       # annual decline in cost effectiveness because world is getting better
-        z₁       = 10,                                      # initial exogenous spending
+        z₁       = 10,                                       # initial exogenous spending
         g        = TwoPieceUniform([0, .05, .1]),            # growth rate of exogenous spending
         C₁       = TwoPieceUniform([0, .5, 2]),             # initial crowd-in rate
-        ∂C       = .5,                                    # per-decade multiplier for crowd-in decay/growth
-        d        = 0,                                     # pure time preference
-        f        = TwoPieceUniform([0, .01, .03]), # flow-through rate
-        δf      = .01,                            # flow-through decay rate
+        ∂C       = .5,                                      # per-decade multiplier for crowd-in decay/growth
+        d        = 0,                                       # pure time preference
+        f        = TwoPieceUniform([0, .01, .03]),          # flow-through rate
+        δf      = .01,                                      # flow-through decay rate
         timeline,
-        t₁       = 2025,                           # simulation start date in calendar time
-        X        = TwoPieceUniform([.01,.06,.1666]),   # risk of extinction/end of scarcity, by 2100
+        t₁       = 2025,                                    # simulation start date in calendar time
+        X        = TwoPieceUniform([.01,.06,.1666]),        # risk of extinction/end of scarcity, by 2100
         e        = .002,    # annual risk of expropriation
         v        = TwoPieceUniform([-.0035, .0035, .02]),   # annual loss from values drift
         c        = TwoPieceUniform([.1,.3,.6]),                                     # learning rate: elasticity of effectiveness to cumulative disbursement
@@ -114,7 +103,7 @@ for s ∈ .25:.1:1.25
   m = SimModel{S}(Xoshiro(102398); params...)  # first argument is a random number generator with an arbitrarily chosen seed
 
   objective(F, G, H, x) = sim(m, F, G, H, x)  # function to be maximized, which provides gradient & Hessian too
-  @time o = Optim.optimize(Optim.only_fgh!(objective), start, NewtonTrustRegion(), #=Optim.Options(show_trace=true, extended_trace=true)=#)
+  @time o = Optim.optimize(NLSolversBase.only_fgh!(objective), start, NewtonTrustRegion(), #=Optim.Options(show_trace=true, extended_trace=true)=#)
 
   rmed = median(params.r)
   A₀med = exp(median(params.lnA₀))
@@ -133,7 +122,7 @@ end
 axislegend(a1, position=:lt, framevisible = false)
 f |> display
 df
-end
+
 
 params = (
   QMC = false,                                          # quasi-Monte Carlo vs pseudo-random draws for uncertain params
@@ -175,14 +164,13 @@ params = (
 m = SimModel{S}(Xoshiro(102398); params...)  # first argument is a random number generator with an arbitrarily chosen seed
 
 objective(F, G, H, x) = sim(m, F, G, H, x)  # function to be maximized, which provides gradient & Hessian too
-o = Optim.optimize(Optim.only_fgh!(objective), start, NewtonTrustRegion(), #=Optim.Options(show_trace=true, extended_trace=true)=#)
+o = Optim.optimize(NLSolversBase.only_fgh!(objective), start, NewtonTrustRegion(), #=Optim.Options(show_trace=true, extended_trace=true)=#)
 
 
 #-----
 # "replication" of version 1 model
 #-----
 
-# To install packages below, run julia from terminal, hit "]", then type "add [package name list]"
 using Random, Optim, Statistics, StatsBase, BenchmarkTools, CairoMakie, AxisKeys, LinearAlgebra
 using SpendDown
 
@@ -301,7 +289,7 @@ a3 = Axis(f[1,1], ylabel="spending %", xticks=0:10:50, xminorgridvisible=true, x
   );
 
   start = fill(logit(.03), m.T₁+m.T₂-1)
-  o = Optim.optimize(Optim.only_fgh!((F, G, H, x) -> sim(m, F, G, H, x)), start, NewtonTrustRegion())
+  o = Optim.optimize(NLSolversBase.only_fgh!((F, G, H, x) -> sim(m, F, G, H, x)), start, NewtonTrustRegion())
 
   rmed = median(m.r) - 1
 
