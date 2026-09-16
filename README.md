@@ -18,20 +18,20 @@ This code file implements two versions of the spenddown model. Version 1 has not
 ## Installation
 This is a Julia package, so you need Julia.
 
-As of September 2026, underlying packages are not loading properly in Julia 1.13, which was just released. So use Julia 1.12:
+The front end is built in Pluto, which does not yet support Julia 1.13 (as of September 2026). Install and run Julia 1.12:
 1. Follow the [installation instructions for Julia](https://julialang.org/downloads).
 2. In a command shell, type:
    ```
    juliaup add 1.12
    julia +1.12
    ```
-3. After Julia starts, install the SpendDown package with
+3. After Julia starts, install this package with
    ```julia
    using Pkg; Pkg.add(url="https://github.com/droodman/SpendDown.jl")
    ```
 
-To use the model Pluto notebook front end (recommended):
-1. <a href="https://raw.githubusercontent.com/droodman/SpendDown.jl/refs/heads/main/src/frontend.jl" download>Download the front end directly from this repo</a>.
+To run the front end (recommended):
+1. Download the front end directly from this repo by going here, and clicking the download icon toward the upper right.
 2. In Julia 1.12, do
 ```julia
 using Pkg; Pkg.add("Pluto")
