@@ -31,8 +31,9 @@ As of September 2026, underlying packages are not loading properly in Julia 1.13
    ```
 
 To use the model Pluto notebook front end (recommended):
-1. In Julia 1.12, do
-```
+1. <a href="https://raw.githubusercontent.com/droodman/SpendDown.jl/refs/heads/main/src/frontend.jl" download>Download the front end directly from this repo</a>.
+2. In Julia 1.12, do
+```julia
 using Pkg; Pkg.add("Pluto")
 using Pluto; Pluto.run()
 ```
