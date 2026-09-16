@@ -28,15 +28,15 @@ The front end is built in Pluto, which does not yet support Julia 1.13 (as of Se
    ```
 3. After Julia starts, install this package with
    ```julia-repl
-   using Pkg; Pkg.add(url="https://github.com/droodman/SpendDown.jl")
+   julia> using Pkg; Pkg.add(url="https://github.com/droodman/SpendDown.jl")
    ```
 
 To run the front end (recommended):
 1. Download the front end directly from this repo by going here, and clicking the download icon toward the upper right.
 2. In Julia 1.12, do
 ```julia-repl
-using SpendDown
-SpendDown.notebook()
+julia> using SpendDown
+julia> SpendDown.notebook()
 
 ```
 3. The Pluto home screen should appear in a new browser tab.
