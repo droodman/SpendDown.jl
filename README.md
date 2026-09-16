@@ -16,9 +16,9 @@ This code file implements two versions of the spenddown model. Version 1 has not
 
 
 ## Installation
-This is a Julia package, so you need Julia.
+This is a Julia package, so you need Julia. The front end is built in Pluto, which does not yet support Julia 1.13 (as of September 2026).
 
-The front end is built in Pluto, which does not yet support Julia 1.13 (as of September 2026). Install and run Julia 1.12:
+To install and run Julia 1.12, then install this package and run its front end:
 1. [Install Julia](https://julialang.org/downloads)--just takes a few clicks or a single shell command.
 2. In a command shell, type:
    ```
