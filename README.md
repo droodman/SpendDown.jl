@@ -13,7 +13,7 @@ So you need to install and run Julia 1.12, install this package, and then load i
    julia +1.12
    
    ```
-3. After Julia starts, install this package with
+3. After Julia 1.12 starts, install this package with
    ```julia
    using Pkg; Pkg.add(url="https://github.com/droodman/SpendDown.jl")
    
