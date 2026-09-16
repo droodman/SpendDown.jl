@@ -1,4 +1,4 @@
-# SpendDownJulia
+# Spenddown modeling
  
 This code file implements two versions of the spenddown model. Version 1 has not been made public. Version 2 makes major changes, including unconstrained optimization over spending paths, learning by doing, simulation of market returns, and a revamped handling of flow-through.
 
