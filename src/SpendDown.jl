@@ -2,10 +2,14 @@ module SpendDown
 
 export SimModel, sim, SimModelOld, simOld, TwoPieceUniform, PiecewiseUniform, Bitriangular, rhist
 
-using Random, Distributions, Statistics, StatsBase, DataFrames, LogExpFunctions, AxisKeys, LinearAlgebra, QuasiMonteCarlo
+using Random, Distributions, Statistics, StatsBase, DataFrames, LogExpFunctions, AxisKeys, LinearAlgebra, QuasiMonteCarlo, Pluto
 
 include("PriorDistributions.jl")
 include("SpendDownv1.jl")
+
+public notebook
+notebook() = Pluto.run(notebook=joinpath(dirname(@__FILE__), "frontend.jl"))
+
 
 const rhist = [  # real January-January S&P returns, 1871-2024, computed from Shiller's ie_data.xls, https://shillerdata.com, Data tab, col. J
                 1.139054
